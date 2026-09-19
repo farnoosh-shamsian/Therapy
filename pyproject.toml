@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thera-py"
+version = "0.1.0"
+description = "Distant reading for German and English psychotherapy transcripts. Runs in the browser, offline."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Thera.py" }]
+keywords = ["german", "english", "psychotherapy", "transcripts", "corpus", "distant reading"]
+
+# Deliberately zero runtime dependencies.
+#
+# Everything in this package is pure standard library. That is not minimalism
+# for its own sake: it is what makes the browser build possible. No micropip,
+# no wheels to fetch, no numpy/pandas load time, and — the point of the whole
+# exercise — no network call at all after the page itself is cached.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+therapy = "therapy.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "pysrc" }
+
+[tool.setuptools.packages.find]
+where = ["pysrc"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["pysrc"]

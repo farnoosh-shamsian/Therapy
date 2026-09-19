@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Vendored Pyodide runtime — optional, large, and fetched by the user.
+# See the README section "With no foreign server at all".
+vendor/
+
+# Never, under any circumstances, real transcripts.
+transcripts/
+transkripte/
+*.real.txt

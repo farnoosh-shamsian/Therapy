@@ -1,0 +1,472 @@
+/* Thera.py — Oberfläche.
+ *
+ * Light and dark via prefers-color-scheme: no toggle, no stored state. System
+ * fonts rather than webfonts, because a font from a CDN would be a network
+ * call, and the promise of this tool is that it runs without one.
+ *
+ * The governing design decision is: quiet. This is a reading tool for clinical
+ * material, not an analytics dashboard. No alert colours, no traffic lights,
+ * no progress bars drawn over a person.
+ *
+ * Class names are German, matching the Python identifiers they come from; the
+ * text the user reads is English.
+ */
+
+:root {
+  --papier: #fbfaf7;
+  --papier-2: #ffffff;
+  --rand: #e2ded6;
+  --rand-stark: #cfc9be;
+  --text: #22201d;
+  --text-leise: #6d675e;
+  --akzent: #5b6c8f;
+  --akzent-leise: #dfe4ee;
+  --warm: #c08a3e;
+  --kalt: #4f7fa8;
+  --neutral: #b4aea4;
+  --warnung: #8a6d2f;
+  --warnung-grund: #fdf6e6;
+  --f0: #5b6c8f; --f1: #8f7a5b; --f2: #6f8f5b; --f3: #8f5b6c;
+  --f4: #5b8f8b; --f5: #7a5b8f; --f6: #8f6e5b; --f7: #6b6b6b;
+  --radius: 8px;
+  --schrift: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papier: #16181a;
+    --papier-2: #1d2023;
+    --rand: #2d3237;
+    --rand-stark: #3d444b;
+    --text: #e6e3de;
+    --text-leise: #9a958c;
+    --akzent: #8fa6cc;
+    --akzent-leise: #26303f;
+    --warm: #d8a45c;
+    --kalt: #6fa4cf;
+    --neutral: #5a5750;
+    --warnung: #d8b968;
+    --warnung-grund: #2a2517;
+    --f0: #8fa6cc; --f1: #cbb083; --f2: #9dc183; --f3: #cc8fa1;
+    --f4: #83c1bc; --f5: #b294cc; --f6: #cc9f83; --f7: #a0a0a0;
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* Muss vor allen display-Regeln stehen: sonst gewinnt jedes spätere
+   `display: flex` gegen das hidden-Attribut, und Elemente, die per JS
+   versteckt werden, bleiben sichtbar. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--papier);
+  color: var(--text);
+  font-family: var(--schrift);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+body { display: flex; flex-direction: column; }
+
+/* ------------------------------------------------------------------ */
+/* Kopf                                                                */
+/* ------------------------------------------------------------------ */
+
+.seitenkopf {
+  display: flex; align-items: baseline; gap: 14px;
+  padding: 14px 22px; border-bottom: 1px solid var(--rand);
+  background: var(--papier-2);
+}
+.seitenkopf h1 {
+  font-size: 19px; margin: 0; font-weight: 620; letter-spacing: -0.01em;
+}
+.motto { color: var(--text-leise); font-size: 13px; font-style: italic; }
+.seitenkopf .rechts { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+#version { color: var(--text-leise); font-size: 12px; font-family: var(--mono); }
+
+#kopfleiste {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 10px 22px; border-bottom: 1px solid var(--rand);
+  background: var(--papier-2); position: sticky; top: 0; z-index: 5;
+}
+
+button, select, input[type="search"] {
+  font: inherit; color: inherit;
+  background: var(--papier);
+  border: 1px solid var(--rand-stark);
+  border-radius: var(--radius);
+  padding: 5px 11px;
+}
+button, .knopf { cursor: pointer; }
+.knopf {
+  display: inline-block; font: inherit; color: inherit;
+  background: var(--papier); border: 1px solid var(--rand-stark);
+  border-radius: var(--radius); padding: 5px 11px;
+}
+.knopf:hover { border-color: var(--akzent); }
+#dateiwahl:focus-visible + .knopf { outline: 2px solid var(--akzent); outline-offset: 2px; }
+button:hover, select:hover { border-color: var(--akzent); }
+button:focus-visible, select:focus-visible, input:focus-visible,
+.klickbar:focus-visible {
+  outline: 2px solid var(--akzent); outline-offset: 2px;
+}
+
+.nav-knopf[aria-current="true"] {
+  background: var(--akzent-leise); border-color: var(--akzent); font-weight: 600;
+}
+.trenner { flex: 1; }
+
+/* ------------------------------------------------------------------ */
+/* Ladezustand                                                         */
+/* ------------------------------------------------------------------ */
+
+#ladezustand {
+  padding: 12px 22px; background: var(--akzent-leise);
+  border-bottom: 1px solid var(--rand); font-size: 14px;
+}
+#lade-balken { width: 220px; height: 6px; vertical-align: middle; margin-left: 10px; }
+
+/* ------------------------------------------------------------------ */
+/* Leerzustand und Ablage                                              */
+/* ------------------------------------------------------------------ */
+
+#leer-zustand {
+  max-width: 760px; margin: 0 auto; padding: 40px 22px;
+}
+#ablage {
+  border: 2px dashed var(--rand-stark); border-radius: 14px;
+  padding: 46px 28px; text-align: center; background: var(--papier-2);
+  transition: border-color .15s, background .15s;
+}
+#ablage.aktiv { border-color: var(--akzent); background: var(--akzent-leise); }
+#ablage h2 { margin: 0 0 6px; font-size: 20px; }
+#ablage p { color: var(--text-leise); margin: 6px 0 16px; }
+.dateiformate { font-family: var(--mono); font-size: 12px; color: var(--text-leise); }
+
+/* Die Einleitung steht vor der Ablage und nicht darunter: wer die Seite zum
+   ersten Mal öffnet, will wissen, was das ist, bevor er eine Datei darauf
+   zieht. Wer sie kennt, scrollt ohnehin nicht. */
+.einleitung { margin-bottom: 26px; }
+.einleitung h2 {
+  margin: 0 0 10px; font-size: 26px; line-height: 1.25; letter-spacing: -0.015em;
+}
+.einleitung p { margin: 10px 0; font-size: 15.5px; max-width: 64ch; }
+.einleitung p + p { color: var(--text-leise); font-size: 14.5px; }
+
+.versprechen {
+  margin-top: 28px; padding: 18px 20px; border: 1px solid var(--rand);
+  border-radius: var(--radius); background: var(--papier-2);
+}
+.versprechen h3 { margin: 0 0 8px; font-size: 15px; }
+.versprechen p { margin: 8px 0; color: var(--text-leise); font-size: 14px; }
+.versprechen strong { color: var(--text); }
+.versprechen em { color: var(--text); font-style: italic; }
+
+/* Die vier Ansichten und die Konfidenzstufen: beide sind Begriff-plus-
+   Erklärung, also eine Definitionsliste und keine Tabelle. Das Raster
+   klappt unter 560px auf eine Spalte, wo eine Tabelle bräche. */
+.ansichten { margin: 12px 0 0; display: grid; gap: 14px; }
+.ansichten > div { display: grid; grid-template-columns: 132px 1fr; gap: 14px; }
+.ansichten dt { font-weight: 600; font-size: 14px; }
+.ansichten dd {
+  margin: 0; color: var(--text-leise); font-size: 14px; max-width: 62ch;
+}
+
+.grade { margin: 12px 0; display: grid; gap: 7px; }
+.grade > div { display: grid; grid-template-columns: 132px 1fr; gap: 14px; }
+.grade dt {
+  font-family: var(--mono); font-weight: 600; font-size: 13px; color: var(--akzent);
+}
+.grade dd { margin: 0; color: var(--text-leise); font-size: 14px; }
+
+@media (max-width: 560px) {
+  .ansichten > div, .grade > div { grid-template-columns: 1fr; gap: 2px; }
+  .einleitung h2 { font-size: 22px; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Ansicht                                                             */
+/* ------------------------------------------------------------------ */
+
+#ansicht { flex: 1; overflow-y: auto; padding: 22px; max-width: 1100px; width: 100%; margin: 0 auto; }
+.ansicht-kopf { margin-bottom: 18px; }
+.ansicht-kopf h2 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+.unter { color: var(--text-leise); font-size: 13px; margin: 2px 0 0; }
+
+.block {
+  margin: 0 0 26px; padding: 16px 18px;
+  border: 1px solid var(--rand); border-radius: var(--radius);
+  background: var(--papier-2);
+}
+.block h3 { margin: 0 0 4px; font-size: 16px; }
+.block h4 { margin: 18px 0 6px; font-size: 14px; color: var(--text-leise); }
+.block-hinweis { margin: 0 0 14px; color: var(--text-leise); font-size: 13px; max-width: 72ch; }
+
+.leer { color: var(--text-leise); font-style: italic; font-size: 14px; }
+
+/* ------------------------------------------------------------------ */
+/* Kacheln                                                             */
+/* ------------------------------------------------------------------ */
+
+.kacheln {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+.kachel {
+  border: 1px solid var(--rand); border-radius: var(--radius);
+  padding: 10px 12px; background: var(--papier);
+}
+.kachel.klickbar { cursor: pointer; }
+.kachel.klickbar:hover { border-color: var(--akzent); background: var(--akzent-leise); }
+.kachel-kopf { display: flex; align-items: center; gap: 6px; }
+.kachel-label { font-size: 12px; color: var(--text-leise); flex: 1; }
+.kachel-wert { font-size: 23px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.kachel-hinweis { font-size: 11.5px; color: var(--text-leise); margin: 6px 0 0; line-height: 1.4; }
+.kachel-spark { margin-top: 2px; }
+
+.konf {
+  font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+  border: 1px solid var(--rand-stark); color: var(--text-leise); cursor: help;
+}
+.konf-A { border-color: var(--akzent); color: var(--akzent); }
+.konf-Astern { border-color: var(--akzent); color: var(--akzent); }
+.konf-C { border-color: var(--warnung); color: var(--warnung); }
+
+/* ------------------------------------------------------------------ */
+/* Diagramme                                                           */
+/* ------------------------------------------------------------------ */
+
+.chart { width: 100%; height: auto; display: block; }
+.gitter { stroke: var(--rand); stroke-width: 1; }
+.achse { fill: var(--text-leise); font-size: 10px; font-family: var(--schrift); }
+.verlauf-linie { fill: none; stroke: var(--akzent); stroke-width: 1.8; stroke-linejoin: round; }
+.verlauf-glatt { fill: none; stroke: var(--text-leise); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.verlauf-flaeche { fill: var(--akzent); opacity: .08; }
+.punkt { fill: var(--akzent); }
+.punkt.klickbar { cursor: pointer; }
+.punkt.klickbar:hover { r: 5.5; fill: var(--warm); }
+.wechsel { stroke: var(--warm); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.wechsel-flaeche { fill: var(--warm); opacity: .06; }
+.wechsel-text { fill: var(--warm); font-size: 10px; font-weight: 600; }
+.leer-text { fill: var(--text-leise); font-size: 12px; font-style: italic; }
+
+.spark { width: 120px; height: 28px; }
+.spark-linie { fill: none; stroke: var(--text-leise); stroke-width: 1.2; }
+.spark-ende { fill: var(--akzent); }
+
+.klein-bilder { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.klein-bild { margin: 0; border: 1px solid var(--rand); border-radius: var(--radius); padding: 8px; cursor: pointer; }
+.klein-bild:hover { border-color: var(--akzent); }
+.klein-bild figcaption { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 4px; }
+.klein-bild figcaption span:first-child { flex: 1; }
+.trend { font-size: 14px; color: var(--text-leise); }
+
+.anteilsbalken { width: 100%; height: 22px; display: block; }
+.anteil.f0 { fill: var(--f0); } .anteil.f1 { fill: var(--f1); }
+.anteil.f2 { fill: var(--f2); } .anteil.f3 { fill: var(--f3); }
+.anteil.f4 { fill: var(--f4); } .anteil.f5 { fill: var(--f5); }
+.anteil.f6 { fill: var(--f6); } .anteil.f7 { fill: var(--f7); }
+.legende { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--text-leise); }
+.punkt-f { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+.punkt-f.f0 { background: var(--f0); } .punkt-f.f1 { background: var(--f1); }
+.punkt-f.f2 { background: var(--f2); } .punkt-f.f3 { background: var(--f3); }
+.punkt-f.f4 { background: var(--f4); } .punkt-f.f5 { background: var(--f5); }
+.punkt-f.f6 { background: var(--f6); } .punkt-f.f7 { background: var(--f7); }
+
+.sozio-kante { stroke: var(--rand-stark); }
+.sozio-knoten { cursor: pointer; }
+.sozio-knoten text { fill: var(--text); font-size: 11px; font-family: var(--schrift); }
+.sozio-knoten:hover circle { stroke: var(--akzent); stroke-width: 2; }
+.heat { fill: var(--akzent); }
+.heat-label { fill: var(--text-leise); font-size: 11px; font-family: var(--schrift); }
+.kommen-gehen { margin-top: 12px; font-size: 13px; color: var(--text-leise); }
+.kommen-gehen b { color: var(--text); }
+
+/* ------------------------------------------------------------------ */
+/* Balken                                                              */
+/* ------------------------------------------------------------------ */
+
+.balken { display: flex; flex-direction: column; gap: 3px; }
+.balken-zeile { display: grid; grid-template-columns: 175px 1fr 150px; gap: 10px; align-items: center; padding: 2px 4px; border-radius: 4px; }
+.balken-zeile.klickbar { cursor: pointer; }
+.balken-zeile.klickbar:hover { background: var(--akzent-leise); }
+.balken-label { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.balken-spur { background: var(--rand); height: 9px; border-radius: 5px; overflow: hidden; }
+.balken-fuell { display: block; height: 100%; background: var(--akzent); border-radius: 5px; }
+.balken-wert { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-leise); text-align: right; }
+.balken-wert em { font-style: normal; opacity: .75; }
+
+/* ------------------------------------------------------------------ */
+/* Tabellen, Listen                                                    */
+/* ------------------------------------------------------------------ */
+
+.tabelle { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tabelle th { text-align: left; font-weight: 600; color: var(--text-leise); border-bottom: 1px solid var(--rand); padding: 6px 8px; }
+.tabelle td { padding: 6px 8px; border-bottom: 1px solid var(--rand); vertical-align: top; }
+.tabelle .num { text-align: right; font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-size: 12px; }
+.warnzeile td { color: var(--warnung); background: var(--warnung-grund); font-size: 12.5px; }
+/* Eine fehlende Kennzahl ist kein Alarm. Sie gelb zu machen trainiert an,
+   die echten Warnungen zu übersehen. */
+.infozeile td { color: var(--text-leise); font-size: 12.5px; }
+
+.tag {
+  display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+  background: var(--akzent-leise); color: var(--akzent); font-family: var(--mono);
+}
+
+.warnkasten {
+  border: 1px solid var(--warnung); background: var(--warnung-grund);
+  color: var(--warnung); border-radius: var(--radius);
+  padding: 10px 14px; margin-bottom: 18px; font-size: 13.5px;
+}
+.warnkasten p { margin: 4px 0; }
+.warnkasten.sanft { border-color: var(--rand-stark); background: var(--papier); color: var(--text-leise); }
+
+/* Sprache
+   -------------------------------------------------------------------------
+   Die Sprachwahl im Befund steht bewusst mitten in der Tabelle und nicht in
+   einer Einstellungsleiste: sie ist eine Korrektur an einer geratenen Zahl,
+   genau wie der Sprechertausch, und gehört neben das Geratene. */
+
+.sprachwahl {
+  font: inherit; font-size: 12px; padding: 1px 4px;
+  border: 1px solid var(--rand-stark); border-radius: 4px;
+  background: var(--papier); color: var(--text);
+}
+.sprach-quelle {
+  display: block; font-size: 11px; color: var(--text-leise); margin-top: 2px;
+}
+
+/* Eine Sprachgrenze ist keine Warnung — die Zahl ist nicht falsch, sie trägt
+   nur weniger. Deshalb dieselbe zurückhaltende Farbe wie bei den übrigen
+   Einordnungen und nicht das Warngelb. */
+.grenze-marke {
+  font-size: 11px; color: var(--text-leise); white-space: nowrap;
+  border: 1px solid var(--rand-stark); border-radius: 4px; padding: 0 4px;
+  margin-left: 6px;
+}
+.vergleich li.ueber-sprachgrenze { opacity: 0.82; }
+
+.saetze { margin: 0 0 14px; padding-left: 20px; }
+.saetze li { font-size: 16px; margin-bottom: 4px; }
+
+.faeden { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.faden { border: 1px solid var(--rand); border-left: 3px solid var(--warm); border-radius: var(--radius); padding: 9px 12px; cursor: pointer; }
+.faden:hover { background: var(--akzent-leise); }
+.faden-kopf { display: flex; align-items: baseline; gap: 10px; }
+.faden-ort { font-size: 13px; font-weight: 600; flex: 1; }
+.faden-staerke { font-size: 12px; color: var(--text-leise); font-variant-numeric: tabular-nums; }
+.faden-woerter { margin: 6px 0 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.faden-meta { margin: 0; font-size: 12px; color: var(--text-leise); }
+
+.wortwolke { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.wort {
+  border: 1px solid var(--rand); background: var(--papier); border-radius: 14px;
+  padding: 3px 10px; font-size: 13px; cursor: pointer;
+}
+.wort:hover { border-color: var(--akzent); background: var(--akzent-leise); }
+.wort .teile { color: var(--text-leise); font-size: 11px; }
+.wort .anzahl { color: var(--text-leise); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+.vergleich { list-style: none; padding: 0; margin: 0; }
+.vergleich li { display: flex; gap: 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--rand); }
+.vergleich-satz { flex: 1; font-size: 15px; }
+.vergleich-zahl { font-variant-numeric: tabular-nums; color: var(--text-leise); font-size: 13px; }
+
+.profile { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.profil { border: 1px solid var(--rand); border-radius: var(--radius); padding: 12px 14px; }
+.profil h4 { margin: 0; color: var(--text); font-size: 15px; }
+
+.idiolekt { margin: 0; padding-left: 22px; }
+.idiolekt li { padding: 3px 0; }
+.idiolekt .phrase { font-style: italic; }
+.idiolekt .anzahl, .idiolekt .bei { color: var(--text-leise); font-size: 12px; margin-left: 8px; }
+
+.geltung { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 8px; }
+.geltung-punkt { border-left: 3px solid var(--rand-stark); padding-left: 12px; }
+.geltung-punkt h4 { margin: 0 0 4px; font-size: 14px; }
+.geltung-punkt p { margin: 0; color: var(--text-leise); font-size: 13px; }
+
+/* ------------------------------------------------------------------ */
+/* Konkordanz                                                          */
+/* ------------------------------------------------------------------ */
+
+.suchzeile { display: flex; gap: 8px; margin-bottom: 16px; }
+#kwic-eingabe { flex: 1; }
+.treffer-zahl { font-size: 13px; color: var(--text-leise); margin: 0 0 8px; }
+
+.kwic { list-style: none; margin: 0 0 22px; padding: 0; font-size: 13.5px; }
+.kwic-zeile {
+  display: grid; grid-template-columns: 74px 1fr auto 1fr; gap: 8px;
+  padding: 3px 6px; border-radius: 4px; cursor: pointer; align-items: baseline;
+}
+.kwic-zeile:nth-child(odd) { background: color-mix(in oklab, var(--rand) 28%, transparent); }
+.kwic-zeile:hover { background: var(--akzent-leise); }
+.kwic-ort { font-family: var(--mono); font-size: 11px; color: var(--text-leise); white-space: nowrap; }
+.kwic-links { text-align: right; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; direction: rtl; }
+.kwic-treffer { font-weight: 700; color: var(--akzent); white-space: nowrap; }
+.kwic-rechts { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sprecher { font-style: normal; font-weight: 700; margin-left: 4px; }
+.s-T { color: var(--f1); } .s-K { color: var(--akzent); }
+
+.turns { list-style: none; margin: 0; padding: 0; }
+.turn { display: grid; grid-template-columns: 58px 1fr; gap: 10px; padding: 6px 8px; border-radius: 4px; }
+.turn p { margin: 0; }
+.turn.fokus { background: var(--akzent-leise); outline: 1px solid var(--akzent); }
+.turn-ort { font-family: var(--mono); font-size: 11px; color: var(--text-leise); }
+
+/* ------------------------------------------------------------------ */
+/* Schublade                                                           */
+/* ------------------------------------------------------------------ */
+
+#schublade {
+  position: fixed; right: 0; bottom: 0; top: 0; width: min(620px, 100vw);
+  background: var(--papier-2); border-left: 1px solid var(--rand-stark);
+  box-shadow: -14px 0 40px rgba(0, 0, 0, .12);
+  display: flex; flex-direction: column; z-index: 20;
+}
+.schublade-kopf {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid var(--rand);
+}
+.schublade-kopf h3 { margin: 0; font-size: 15px; flex: 1; }
+#schublade-inhalt { overflow-y: auto; padding: 14px 16px; flex: 1; }
+
+/* ------------------------------------------------------------------ */
+/* Dialog                                                              */
+/* ------------------------------------------------------------------ */
+
+dialog {
+  border: 1px solid var(--rand-stark); border-radius: 12px; padding: 0;
+  background: var(--papier-2); color: var(--text);
+  max-width: 620px; width: 92vw;
+}
+dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.dialog-inhalt { padding: 20px 22px; }
+.dialog-inhalt h2 { margin: 0 0 6px; font-size: 18px; }
+.dialog-inhalt > p { color: var(--text-leise); font-size: 13.5px; margin-top: 0; }
+#namensliste { list-style: none; margin: 14px 0; padding: 0; max-height: 46vh; overflow-y: auto; }
+#namensliste li { padding: 6px 0; border-bottom: 1px solid var(--rand); }
+#namensliste label { display: flex; align-items: baseline; gap: 8px; cursor: pointer; }
+#namensliste .name { font-weight: 600; }
+#namensliste .name-meta { color: var(--text-leise); font-size: 12px; }
+.name-beleg { margin: 3px 0 0 26px; font-size: 12px; color: var(--text-leise); font-style: italic; }
+.dialog-knoepfe { display: flex; gap: 8px; justify-content: flex-end; }
+
+.fusszeile {
+  padding: 10px 22px; border-top: 1px solid var(--rand);
+  color: var(--text-leise); font-size: 12px;
+}
+.fusszeile a { color: var(--akzent); }
+
+@media (max-width: 720px) {
+  .balken-zeile { grid-template-columns: 110px 1fr 90px; }
+  .kwic-zeile { grid-template-columns: 1fr; }
+  .kwic-links, .kwic-rechts { direction: ltr; text-align: left; white-space: normal; }
+  #schublade { width: 100vw; }
+}
