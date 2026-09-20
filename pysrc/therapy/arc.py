@@ -313,8 +313,7 @@ def beschreibe(wp: Wechselpunkt, sitzungsnummern: list[int]) -> str:
 
 
 HINWEIS = (
-    "Changepoints are places worth re-reading, not events. A year of weekly "
-    "sessions is twelve to fifty data points, and on that many any method will "
-    "find something. The Bayes factor says how much more the data favour a step "
-    "over ordinary fluctuation; below 3 nothing is reported at all."
+    "Changepoints are places worth re-reading, not events. The Bayes factor "
+    "says how much more the data favour a step over ordinary fluctuation; "
+    "below 3 nothing is reported."
 )

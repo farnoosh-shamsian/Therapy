@@ -168,10 +168,9 @@ export function befundAnsicht(befunde, sprachhinweisText, klienten = []) {
     </table>
     ${fallnamen(klienten)}
     ${sprachhinweis(sprachhinweisText)}`,
-    'This is an honest report of the ingest, not a result. Whatever is missing '
-    + 'here will be missing later too — which is why it comes before the '
-    + 'numbers rather than after them. The language is detected per file; '
-    + 'change it here if it is wrong, and the analysis is recomputed.');
+    'What the files actually contained, not a result. Anything missing here '
+    + 'is missing later too. Correct a language or swap the speakers and '
+    + 'everything is recomputed.');
 }
 
 /* Der Fallname war bisher ausschliesslich aus dem Dateinamen ableitbar. Wer
@@ -183,9 +182,8 @@ function fallnamen(klienten) {
   if (!klienten.length) return '';
   return `<div class="fallnamen">
     <h4>Cases</h4>
-    <p class="block-hinweis">Grouped from the filenames. Pasted text has no
-      filename, so it arrives unnamed — the name is only a label and is not
-      analysed or exported.</p>
+    <p class="block-hinweis">Grouped from the filenames. The name is a label
+      only: not analysed, not exported.</p>
     ${klienten.map((k) => `
       <label class="fallname">
         <input type="text" class="fallname-feld" value="${esc(k.id)}"
@@ -292,14 +290,13 @@ export function sitzungskarte(klient, sitzung, beschriftung, hinweise, serien) {
   ${sitzung.befund?.warnungen?.length ? `<div class="warnkasten">${sitzung.befund.warnungen.map((w) => `<p>⚠ ${esc(w)}</p>`).join('')}</div>` : ''}
 
   ${abschnitt('The client’s language', `<div class="kacheln">${kacheln}</div>`,
-    `All rates are hits per 1000 words spoken by the client, counted with the `
-    + `${sitzung.spracheName} word lists. Click any tile to open the lines that `
-    + `produced it.`)}
+    `Hits per 1000 client words, counted with the ${sitzung.spracheName} word `
+    + `lists. Click a tile for the lines behind it.`)}
 
   ${abschnitt('Affect through the hour',
     C.sitzungsverlauf(sitzung.affektverlauf ?? []),
-    'Each circle is one client turn; size is its length, height is the density '
-    + 'of named feelings. Unsmoothed — the shape of an hour is more honest raw.')}
+    'One circle per client turn: size is its length, height the density of '
+    + 'named feelings. Unsmoothed.')}
 
   ${abschnitt('Dialogue', `<div class="kacheln">${dialogKacheln}</div>
     <h4>Question types</h4>${fragen}`)}
@@ -318,11 +315,9 @@ export function sitzungskarte(klient, sitzung, beschriftung, hinweise, serien) {
     ${vokabel.length
       ? `<p class="wortwolke">${vokabel.map((w) => `<button class="wort klickbar" data-suche="${esc(w)}">${esc(w)}</button>`).join(' ')}</p>`
       : '<p class="leer">Nothing new — or this is the first session.</p>'}`,
-    `Content words that appear in no earlier session with this client. Click `
-    + `one to look it up in the concordance.`
+    `Content words that appear in no earlier session with this client.`
     + (klient.spracheGemischt
-      ? ' This client’s sessions are not all in one language, so the first'
-        + ' session after a switch is almost entirely “new” — that is arithmetic,'
+      ? ' After a change of language almost everything is “new” — arithmetic,'
         + ' not a finding.'
       : ''))}
   `;
@@ -496,9 +491,8 @@ export function woerter(klient, hinweise = {}) {
     </form>
     <div id="wort-verlauf"></div>
     <p class="wortwolke">${einstiege}</p>`,
-    'Rate per 1000 words of that speaker, not raw counts — a long session '
-    + 'otherwise has more of everything. Searched by lemma, so “Ängste” and '
-    + '“Angst” are one curve. Click a point to open the session.')}
+    'Rate per 1000 words, not raw counts, and searched by lemma — “Ängste” '
+    + 'and “Angst” are one curve. Click a point to open the session.')}
 
   ${abschnitt('Late sessions against early ones',
     phase.genug
@@ -520,25 +514,22 @@ export function woerter(klient, hinweise = {}) {
          </div>`
       : `<p class="leer">Fewer than four sessions — a rank correlation over
          three points is not an answer.</p>`,
-    'Rising and fading are the rank correlation of each word’s rate against '
-    + 'session order — the same calculation the trends use, applied to a single '
-    + 'word. Appearing and stopping are simpler and often say more: the first '
-    + 'and the last time.')}
+    'Rising and fading are the rank correlation of a word’s rate against '
+    + 'session order. Appearing and stopping are simpler and often say more.')}
 
   ${komposita.length ? abschnitt('Compounds, split open',
     kompositaListe(komposita)
     + teilfrequenzListe(sw.teilfrequenzen ?? []),
-    '“Verlustangst” appears once and vanishes into the tail unless it is '
-    + 'decomposed — and that is exactly where the emotionally loaded vocabulary '
-    + 'hides. English writes its compounds open (“fear of loss”), so they are '
-    + 'already split and this block does not appear for English sessions.') : ''}
+    '“Verlustangst” vanishes into the tail unless it is split — and that is '
+    + 'where the loaded vocabulary hides. English writes its compounds open, so '
+    + 'this block is German only.') : ''}
 
   ${abschnitt('Against your other clients',
     klient.keynessHinweis
       ? `<p class="leer">${esc(klient.keynessHinweis)}</p>`
       : keynessListe(klient.keyness ?? []),
-    'Log-likelihood against the rest of your caseload rather than against a '
-    + 'general corpus, and only against clients seen in the same language.')}
+    'Log-likelihood against the rest of your caseload, and only against '
+    + 'clients seen in the same language.')}
   `;
 }
 
@@ -606,7 +597,16 @@ export function turnAnsicht(turns, fokus) {
 /* Validity notes                                                      */
 /* ------------------------------------------------------------------ */
 
+/* Die Vorbehalte stehen zugeklappt unter dem Befund. Sie gehören auf diese
+ * Seite und nicht in eine Dokumentation, die niemand öffnet — aber sieben
+ * Absätze Prosa unter der Einlesetabelle liest auch niemand, und sie schieben
+ * die Zahlen aus dem Bild. Zugeklappt bleibt die Überschrift sichtbar; wer sie
+ * einmal aufklappt, hat sie offen. */
 export function geltung(hinweise) {
-  return `<div class="geltung">${hinweise.map((h) => `
-    <div class="geltung-punkt"><h4>${esc(h.titel)}</h4><p>${esc(h.text)}</p></div>`).join('')}</div>`;
+  if (!hinweise?.length) return '';
+  return `<details class="geltung-block">
+    <summary>What these numbers can and cannot carry</summary>
+    <div class="geltung">${hinweise.map((h) => `
+      <div class="geltung-punkt"><h4>${esc(h.titel)}</h4><p>${esc(h.text)}</p></div>`).join('')}</div>
+  </details>`;
 }

@@ -618,11 +618,9 @@ class Korpus:
 # ---------------------------------------------------------------------------
 
 SCHLUESSELWORT_HINWEIS = (
-    "Two numbers per word, and they answer different questions. G² says how "
-    "confident the difference is and grows with the amount of text — over a "
-    "year almost everything ends up looking significant. Log ratio says how "
-    "large it is: +1 means twice as often, +2 four times. Read them together, "
-    "and read the lines behind them before you believe either."
+    "Two numbers per word: G² is how confident the difference is and grows "
+    "with the amount of text; log ratio is how large it is (+1 means twice as "
+    "often). Read the lines behind them before you believe either."
 )
 
 
@@ -639,19 +637,16 @@ def _haeufigste(index, sprecher: str, grenze: int) -> list[tuple[str, int]]:
 
 SPRACHHINWEIS = (
     "Each session is analysed in the language it was spoken in, with that "
-    "language's own word lists — a translated lexicon would measure the "
-    "translation. The language is detected per file and shown in the ingest "
-    "report; you can override it there, or settle it in advance by putting "
-    "“_de” or “_en” in the filename. Within one language the numbers compare "
-    "cleanly. Across the two they do not, and anywhere they are put side by "
-    "side the interface says so."
+    "language's own word lists; nothing is translated. Correct the language in "
+    "the table above if it is wrong. Within one language the numbers compare "
+    "cleanly, across the two they do not."
 )
 
 GELTUNGSHINWEISE = [
     {
         "titel": "One session is noise.",
-        "text": ("Most markers mean nothing below roughly ten sessions. A single "
-                 "striking number in a single session is almost always chance."),
+        "text": ("Most markers mean nothing below roughly ten sessions. One "
+                 "striking number in one session is almost always chance."),
     },
     {
         "titel": "A transcript is not a session.",
@@ -660,36 +655,26 @@ GELTUNGSHINWEISE = [
     },
     {
         "titel": "Speech-recognition errors are not random.",
-        "text": ("Automatic transcription mishears hardest on exactly the "
-                 "low-frequency emotional vocabulary that the granularity "
-                 "measure most wants to count."),
+        "text": ("Automatic transcription mishears hardest on exactly the rare "
+                 "emotional vocabulary the markers most want to count."),
     },
     {
         "titel": "The lexicons are adapted, not validated.",
-        "text": ("Each language runs on its own word lists, and neither set is "
-                 "validated. Which way the adaptation runs differs per marker: "
-                 "the absolutist list is an English instrument worn in German "
-                 "clothes, while style matching and the causal/insight lists are "
-                 "English originals that the German side had to translate. What "
-                 "is deliberately excluded is documented in the source, in "
+        "text": ("Neither language's word lists are validated instruments. What "
+                 "each one includes and deliberately excludes is documented in "
                  "lexika/marker.py and lexika_en/marker.py."),
     },
     {
         "titel": "Two languages, two rulers.",
-        "text": ("German and English sessions are counted with different word "
-                 "lists, because the markers are properties of a language and "
-                 "not of a translation. That makes the trajectories within one "
-                 "language sound, and the *levels* between the two languages "
-                 "meaningless. Wherever a number crosses that line, it says so "
-                 "next to the number."),
+        "text": ("Trajectories within one language are sound; levels between "
+                 "the two are not comparable. Wherever a number crosses that "
+                 "line, it says so next to the number."),
     },
     {
         "titel": "Consent.",
-        "text": ("Your clients consented to being recorded. They almost "
-                 "certainly did not consent to computational analysis of their "
-                 "language. That is your call to make — but it should be made "
-                 "deliberately rather than by default, and it is worth raising "
-                 "with your professional body."),
+        "text": ("Your clients consented to being recorded, almost certainly "
+                 "not to computational analysis of their language. That call is "
+                 "yours, and worth raising with your professional body."),
     },
     {
         "titel": "The tool has no opinion.",

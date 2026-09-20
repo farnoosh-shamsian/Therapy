@@ -190,9 +190,7 @@ def ueber_sitzungen(sitzungen: list[Sitzung], grenze: int = 60) -> list[Faden]:
 
 
 RAHMUNG = (
-    "Doors that were open — moments where something loaded was said and the "
-    "conversation then went elsewhere. This is not a list of mistakes. A thread "
-    "is left lying for good reasons: the hour was up, it was too early, or you "
-    "heard something that the transcript does not contain. The list is here to "
-    "be re-read, not to be worked through."
+    "Moments where something loaded was said and the conversation went "
+    "elsewhere. Not a list of mistakes — threads are left lying for good "
+    "reasons. To be re-read, not worked through."
 )
