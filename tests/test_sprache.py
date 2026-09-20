@@ -13,6 +13,13 @@ from therapy import sprachen
 from therapy.ingest import KLIENT, lies
 from therapy.report import Korpus
 
+
+def lies_eine(*args, **kwargs):
+    """Wie ``lies``, aber für Texte, die genau eine Sitzung sein sollen."""
+    sitzungen = lies(*args, **kwargs)
+    assert len(sitzungen) == 1, f"unerwartet {len(sitzungen)} Sitzungen"
+    return sitzungen[0]
+
 DE = """\
 Therapeut: Wie war die Woche?
 
@@ -59,13 +66,13 @@ def test_zu_wenig_text_wird_nicht_geraten():
 
 
 def test_zu_wenig_text_erzeugt_eine_warnung_im_befund():
-    sitzung = lies("kurz.txt", "T: Mhm.\n\nK: Ja.\n")
+    sitzung = lies_eine("kurz.txt", "T: Mhm.\n\nK: Ja.\n")
     assert sitzung.befund.sprache_quelle == "standard"
     assert any("language" in w.lower() for w in sitzung.befund.warnungen)
 
 
 def test_dateiname_schlaegt_die_erkennung():
-    sitzung = lies("client-jane_session-03_de.txt", EN)
+    sitzung = lies_eine("client-jane_session-03_de.txt", EN)
     assert sitzung.sprache == "de"
     assert sitzung.befund.sprache_quelle == "dateiname"
     # …und der Widerspruch wird gemeldet, statt still übergangen zu werden.
@@ -73,13 +80,13 @@ def test_dateiname_schlaegt_die_erkennung():
 
 
 def test_vorgabe_schlaegt_den_dateinamen():
-    sitzung = lies("client-jane_session-03_de.txt", EN, sprache="en")
+    sitzung = lies_eine("client-jane_session-03_de.txt", EN, sprache="en")
     assert sitzung.sprache == "en"
     assert sitzung.befund.sprache_quelle == "manuell"
 
 
 def test_erkannte_sprache_steht_im_befund():
-    sitzung = lies("client-jane_session-01.txt", EN)
+    sitzung = lies_eine("client-jane_session-01.txt", EN)
     befund = sitzung.befund.als_dict()
     assert befund["sprache"] == "en"
     assert befund["spracheName"] == "English"
@@ -93,14 +100,14 @@ def test_erkannte_sprache_steht_im_befund():
 def test_gemischte_sitzung_wird_gemeldet():
     # Eine Sitzung, die zur Hälfte in der anderen Sprache läuft, wird als
     # eine Sprache ausgewertet — mit einer Warnung, die sagt, was das kostet.
-    sitzung = lies("gemischt.txt", EN + "\n" + DE)
+    sitzung = lies_eine("gemischt.txt", EN + "\n" + DE)
     assert sitzung.befund.anteil_fremdsprache > 0
     assert any("other language" in w for w in sitzung.befund.warnungen)
 
 
 def test_einzelnes_fremdsprachiges_zitat_ist_keine_mischung():
     text = EN + "\n\nClient: She kept saying “das ist halt so” and nothing else.\n"
-    sitzung = lies("zitat.txt", text)
+    sitzung = lies_eine("zitat.txt", text)
     assert sitzung.sprache == "en"
     assert sitzung.befund.anteil_fremdsprache < sprachen.GEMISCHT_AB
 
@@ -110,7 +117,7 @@ def test_einzelnes_fremdsprachiges_zitat_ist_keine_mischung():
 # ---------------------------------------------------------------------------
 
 def test_englische_sprecherlabels():
-    sitzung = lies("client-jane_session-01.txt", EN)
+    sitzung = lies_eine("client-jane_session-01.txt", EN)
     assert sitzung.befund.sprecher_quelle == "labels"
     assert sitzung.hat_sprecher
     assert any(t.sprecher == KLIENT for t in sitzung.turns)
@@ -178,29 +185,6 @@ def test_keyness_vergleicht_nicht_ueber_die_sprachgrenze():
     for klient in bericht["klienten"]:
         assert klient["keyness"] == []
         assert klient["keynessHinweis"] is not None
-
-
-def test_spiegel_markiert_zeilen_ueber_die_sprachgrenze():
-    from therapy.mirror import Klientenprofil, vergleich
-
-    def profil(klient_id, sprache, deutungen, spiegelungen):
-        p = Klientenprofil(klient_id=klient_id, sitzungen=10, sprachen=[sprache])
-        p.interventionen.update({"deutung": deutungen, "spiegelung": spiegelungen})
-        return p
-
-    # Zwei Klienten derselben Sprache: gewöhnlicher Vergleich, keine Markierung.
-    gleich = vergleich([profil("anna", "de", 30, 10), profil("bernd", "de", 10, 30)])
-    assert gleich and not any(z["sprachgrenze"] for z in gleich)
-
-    # Zwei Klienten verschiedener Sprachen: dieselbe Zeile, aber markiert.
-    ueber = vergleich([profil("anna", "de", 30, 10), profil("jane", "en", 10, 30)])
-    assert ueber and all(z["sprachgrenze"] for z in ueber)
-
-
-def test_spiegel_hinweis_zur_sprachgrenze_steht_im_bericht():
-    bericht = _korpus_mit_beiden_sprachen().bericht()
-    hinweis = bericht["hinweise"]["spiegelSprachgrenze"]
-    assert "style matching" in hinweis.lower()
 
 
 def test_einsprachiges_korpus_hat_keine_sprachwarnung():

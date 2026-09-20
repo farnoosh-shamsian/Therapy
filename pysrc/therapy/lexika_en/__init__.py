@@ -10,4 +10,4 @@ messen. Wo sie es nicht tun, steht das im Quelltext und nicht in einer
 Fussnote.
 """
 
-from . import marker, emotion, funktion, intervention  # noqa: F401
+from . import marker, emotion, funktion, dialogmuster  # noqa: F401

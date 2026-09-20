@@ -1,6 +1,7 @@
 /* Thera.py — views.
  *
- * Four views (session card, arc, mirror, concordance) plus the ingest report.
+ * Four views (session, trends, keywords, concordance) plus the ingest report,
+ * which is the fifth button and the one to read first.
  * Every function here returns HTML as a string; wiring up the clicks is
  * main.js's job.
  *
@@ -12,7 +13,7 @@
  * a translation of it.
  *
  * Nothing in this file knows which markers exist. Which tiles a session card
- * shows, which series the arc draws, and what every label and caveat says
+ * shows, which series the trends draw, and what every label and caveat says
  * comes from `beschriftung` in the report, keyed by the session's language.
  * That is deliberate: a view with a hard-coded list of German keys shows an
  * English session ten empty tiles.
@@ -40,7 +41,6 @@ const esc = C.esc;
 export function konfidenz(stufe) {
   const titel = {
     A: 'A — well grounded and robustly computable',
-    'A*': 'A* — well grounded, but only when the transcript has timestamps',
     B: 'B — sound reasoning, heuristic implementation',
     C: 'C — exploratory; interesting to look at, not to conclude from',
   }[stufe] ?? stufe;
@@ -87,7 +87,6 @@ export function fuerSprache(beschriftung, sprache) {
   return {
     marker: waehle(beschriftung.marker),
     dialog: waehle(beschriftung.dialog),
-    interventionen: waehle(beschriftung.interventionen),
     kacheln: waehle(beschriftung.kacheln) ?? [],
     arcReihen: waehle(beschriftung.arcReihen) ?? [],
   };
@@ -110,7 +109,7 @@ export function abschnitt(titel, inhalt, hinweis) {
 /* Ingest report                                                       */
 /* ------------------------------------------------------------------ */
 
-export function befundAnsicht(befunde, sprachhinweisText) {
+export function befundAnsicht(befunde, sprachhinweisText, klienten = []) {
   if (!befunde.length) return '';
   const quelle = {
     labels: 'from labels', geraten: 'guessed', manuell: 'set by hand', keine: 'none',
@@ -143,6 +142,7 @@ export function befundAnsicht(befunde, sprachhinweisText) {
       <td>${esc(quelle[b.sprecherQuelle] ?? b.sprecherQuelle)}</td>
       <td>${b.zeitstempel ? 'yes' : 'no'}</td>
     </tr>
+    ${teilungsZeile(b, SPALTEN)}
     ${b.warnungen.map((w) => `<tr class="warnzeile"><td colspan="${SPALTEN}">⚠ ${esc(w)}</td></tr>`).join('')}
     ${b.nichtVerfuegbar.length ? `<tr class="infozeile"><td colspan="${SPALTEN}">Unavailable for this file: ${esc(b.nichtVerfuegbar.join(', '))}</td></tr>` : ''}
   `).join('');
@@ -153,11 +153,55 @@ export function befundAnsicht(befunde, sprachhinweisText) {
         <th>Labels</th><th>Speakers</th><th>Time</th></tr></thead>
       <tbody>${zeilen}</tbody>
     </table>
+    ${fallnamen(klienten)}
     ${sprachhinweis(sprachhinweisText)}`,
     'This is an honest report of the ingest, not a result. Whatever is missing '
     + 'here will be missing later too — which is why it comes before the '
     + 'numbers rather than after them. The language is detected per file; '
     + 'change it here if it is wrong, and the analysis is recomputed.');
+}
+
+/* Der Fallname war bisher ausschliesslich aus dem Dateinamen ableitbar. Wer
+ * einen Text einfügt, bekam einen Fall namens "unbekannt" in der Auswahlliste
+ * und keinen Weg, ihn zu ändern — eine Zahl ohne Erklärung und ohne Griff.
+ * Der Name ist reine Beschriftung: er wird nicht analysiert, und er steht
+ * nicht im Export. */
+function fallnamen(klienten) {
+  if (!klienten.length) return '';
+  return `<div class="fallnamen">
+    <h4>Cases</h4>
+    <p class="block-hinweis">Grouped from the filenames. Pasted text has no
+      filename, so it arrives unnamed — the name is only a label and is not
+      analysed or exported.</p>
+    ${klienten.map((k) => `
+      <label class="fallname">
+        <input type="text" class="fallname-feld" value="${esc(k.id)}"
+               data-klient="${esc(k.id)}" maxlength="40"
+               aria-label="Name for this case">
+        <span class="anzahl">${esc(k.sitzungen.length)} sessions</span>
+      </label>`).join('')}
+  </div>`;
+}
+
+/* Wie eine Datei in Sitzungen zerfiel. Steht im Befund und nicht in der
+ * Dokumentation, weil es die folgenreichste Entscheidung des Einlesens ist:
+ * ob die x-Achse Sitzungen zeigt oder Schnitte durch einen Text. Wer Segmente
+ * für Sitzungen hält, liest jede Kurve falsch. */
+function teilungsZeile(b, spalten) {
+  const teile = b.sitzungen ?? [];
+  if (b.teilung === 'keine' || teile.length < 2) return '';
+  const segment = b.teilung === 'segmente';
+  const marken = teile.map((s) => {
+    const name = `${segment ? 'Seg' : 'S'}${s.nr ?? '?'}`;
+    return `<span class="tag" title="${esc(s.turns)} turns, ${esc(s.woerter)} words">${esc(name)}${
+      s.datum ? ` · ${esc(s.datum)}` : ''}</span>`;
+  }).join(' ');
+  return `<tr class="infozeile"><td colspan="${spalten}">
+    ${segment
+      ? `Cut into <b>${teile.length} equal segments</b> — no session markers were
+         found. The trend is a trend <em>within</em> this text, not between sessions.`
+      : `Split into <b>${teile.length} sessions</b> at the markers in the text.`}
+    ${marken}</td></tr>`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -218,19 +262,6 @@ export function sitzungskarte(klient, sitzung, beschriftung, hinweise, serien) {
       konf: D.lsm?.konfidenz, hinweis: D.lsm?.hinweis,
       spark: spark('lsm'),
     }),
-    dia.zeitstempel
-      ? kachel({
-          label: 'Response latency (median)',
-          wert: dia.latenzMedian !== null ? `${C.zahl(dia.latenzMedian, 1)} s` : '–',
-          konf: 'A*', hinweis: D.latenzMedian?.hinweis,
-        })
-      : kachel({
-          label: 'Response latency',
-          wert: 'unavailable',
-          konf: 'A*',
-          hinweis: 'This transcript has no timestamps. The number is left out '
-            + 'rather than estimated.',
-        }),
   ].join('');
 
   const ttr = sitzung.ttr ?? {};
@@ -339,7 +370,7 @@ export function bogen(klient, beschriftung, hinweise) {
 
   return `
   <header class="ansicht-kopf">
-    <h2>Arc — ${esc(klient.id)}</h2>
+    <h2>Trends — ${esc(klient.id)}</h2>
     <p class="unter">${esc(klient.sitzungen.length)} sessions ·
       <span class="tag">${esc(klient.spracheName)}</span></p>
   </header>
@@ -365,22 +396,6 @@ export function bogen(klient, beschriftung, hinweise) {
     + C.personenverlauf(sozio.verlauf ?? [], sozio.sitzungen ?? [])
     + eintritte(sozio), sozio.hinweis)}
 
-  ${abschnitt('What makes this client distinctive',
-    klient.keynessHinweis
-      ? `<p class="leer">${esc(klient.keynessHinweis)}</p>`
-      : keynessListe(klient.keyness ?? []),
-    'Log-likelihood against the rest of your caseload rather than against a '
-    + 'general corpus, and only against clients seen in the same language. '
-    + 'With fewer than two such clients loaded this list stays empty.')}
-
-  ${(klient.komposita ?? []).length ? abschnitt('Compounds',
-    kompositaListe(klient.komposita),
-    'German compounds, split open. “Verlustangst” appears once and vanishes '
-    + 'into the tail unless it is decomposed — and that is exactly where the '
-    + 'emotionally loaded vocabulary hides. English writes its compounds open '
-    + '(“fear of loss”), so they are already split and this block does not '
-    + 'appear for English sessions.') : ''}
-
   ${abschnitt('Dropped threads across all sessions',
     fadenListe(klient.faeden ?? [], klient.id), hinweise.faeden)}
   `;
@@ -396,13 +411,27 @@ function eintritte(sozio) {
 }
 
 function keynessListe(eintraege) {
-  if (!eintraege.length) return '<p class="leer">No reference corpus available.</p>';
+  if (!eintraege?.length) return '<p class="leer">Nothing stands out here.</p>';
   return C.balken(eintraege.slice(0, 25).map((e) => ({
-    label: e.wort, wert: e.ll,
-    zusatz: `${e.hier}× here, ${e.referenz}× elsewhere`,
+    label: e.anzeige ?? e.wort, wert: e.ll,
+    // G² sorts the list, log ratio says how big the difference actually is.
+    // Without the second number a long transcript puts everything at the top.
+    zusatz: `${e.hier}× here, ${e.referenz}× elsewhere`
+      + (e.logRatio !== null && e.logRatio !== undefined ? ` · ${C.zahl(e.logRatio, 1)}×log₂` : ''),
     schluessel: null,
   })), { format: (v) => C.zahl(v, 1) })
     + `<p class="block-hinweis">Click a word to open the concordance.</p>`;
+}
+
+/* Frequenzen *nach* der Zerlegung — der eigentliche Zweck des Aufspaltens.
+ * „Verlustangst“, „Versagensangst“ und „Zukunftsangst“ stehen einzeln je
+ * einmal im Schwanz der Liste; zusammengerechnet steht „Angst“ oben. */
+function teilfrequenzListe(eintraege) {
+  if (!eintraege.length) return '';
+  return `<h4 class="unter-titel">Counted after splitting</h4>
+    <p class="wortwolke">${eintraege.slice(0, 30).map((e) =>
+    `<button class="wort klickbar" data-wortverlauf="${esc(e.anzeige ?? e.wort)}">
+      ${esc(e.anzeige ?? e.wort)} <span class="anzahl">${esc(e.anzahl)}×</span></button>`).join(' ')}</p>`;
 }
 
 function kompositaListe(eintraege) {
@@ -414,84 +443,100 @@ function kompositaListe(eintraege) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Mirror                                                              */
+/* Keywords                                                            */
 /* ------------------------------------------------------------------ */
+/*
+ * Keyness used to live at the bottom of the Arc, computed against the rest of
+ * the caseload — which meant that a therapist who loaded one case saw an empty
+ * list and no explanation. The view now leads with the two axes that compare a
+ * text with itself, and keeps the cross-client axis for when there is more
+ * than one case to compare.
+ *
+ * Division of labour with the Concordance: this view answers *which words*,
+ * the Concordance shows *the lines*. Every word here is a button into it.
+ */
 
-export function spiegel(daten, beschriftung, hinweise = {}) {
-  if (!daten.profile.length) return '<p class="leer">Nothing loaded yet.</p>';
+export function woerter(klient, hinweise = {}) {
+  const sw = klient.schluesselwoerter ?? {};
+  const phase = sw.phase ?? {};
+  const bewegung = sw.bewegung ?? {};
+  const komposita = sw.komposita ?? [];
 
-  // The mirror is the one view that puts clients of different languages side by
-  // side, so it is the one view that has to name the seam. Rows that cross it
-  // are marked rather than dropped — dropped, a bilingual practice would lose
-  // half the table.
-  const ueberGrenze = daten.vergleich.some((z) => z.sprachgrenze);
-  const namenFuer = (klientId) => {
-    const profil = daten.profile.find((p) => p.klient === klientId);
-    return fuerSprache(beschriftung, profil?.sprachen?.[0]).interventionen;
-  };
-
-  const vergleich = daten.vergleich.length
-    ? `<ul class="vergleich">${daten.vergleich.map((z) => `
-        <li class="${z.sprachgrenze ? 'ueber-sprachgrenze' : ''}">
-          <span class="vergleich-satz">${esc(z.satz)}${z.sprachgrenze
-            ? ' <span class="grenze-marke" title="These two clients were seen in different languages — part of this gap is the tool, not you.">⚑ across languages</span>'
-            : ''}</span>
-          <span class="vergleich-zahl">${esc(C.zahl(z.verhaeltnis, 1))}×</span></li>`).join('')}</ul>`
-    : `<p class="leer">${daten.genugKlienten
-        ? 'No striking differences between clients.'
-        : 'The comparison needs at least two clients. This is the view the whole '
-          + 'exercise is worth — load a second case.'}</p>`;
-
-  const profile = daten.profile.map((p) => {
-    const namen = namenFuer(p.klient);
-    const kategorien = Object.entries(p.anteile)
-      .filter(([kat]) => kat !== 'rueckkanal')
-      .sort((a, b) => b[1] - a[1]);
-    return `<article class="profil">
-      <h4>${esc(p.klient)} <span class="tag">${esc(p.spracheName)}</span></h4>
-      <p class="unter">${esc(p.sitzungen)} sessions · talk ratio ${esc(C.prozent(p.redeanteil))}
-        · open questions ${esc(p.frageQuote !== null ? C.prozent(p.frageQuote) : '–')}
-        · uptake ${esc(C.prozent(p.aufnahme))}</p>
-      ${C.anteile(kategorien.map(([kat, wert]) => ({ label: namen[kat] ?? kat, wert })))}
-      ${C.balken(kategorien.map(([kat, wert]) => ({
-        label: namen[kat] ?? kat, wert,
-        zusatz: `${p.interventionen[kat]}×`,
-        schluessel: `intervention:${p.klient}:${kat}`,
-      })), { format: (v) => C.prozent(v, 1) })}
-    </article>`;
-  }).join('');
-
-  const idiolekt = daten.idiolekt.length
-    ? `<ol class="idiolekt">${daten.idiolekt.map((e) => `
-        <li><span class="phrase">“${esc(e.phrase)}”</span>
-          <span class="anzahl">${esc(e.anzahl)}×</span>
-          <span class="bei">with ${esc(e.klienten.join(', '))}</span></li>`).join('')}</ol>`
-    : '<p class="leer">No phrase recurs across more than one client.</p>';
+  const einstiege = (sw.haeufig ?? []).slice(0, 30).map((e) =>
+    `<button class="wort klickbar" data-wortverlauf="${esc(e.anzeige ?? e.wort)}">
+      ${esc(e.anzeige ?? e.wort)} <span class="anzahl">${esc(e.anzahl)}×</span></button>`).join(' ');
 
   return `
   <header class="ansicht-kopf">
-    <h2>Mirror</h2>
-    <p class="unter">Across your whole caseload — about you.</p>
+    <h2>Keywords — ${esc(klient.id)}</h2>
+    <p class="unter">${esc(klient.sitzungen.length)} sessions ·
+      <span class="tag">${esc(klient.spracheName)}</span></p>
   </header>
 
-  <div class="warnkasten sanft"><p>${esc(daten.hinweis)}</p></div>
-  ${ueberGrenze ? sprachhinweis(hinweise.spiegelSprachgrenze) : ''}
+  ${klient.spracheGemischt ? sprachhinweis(klient.spracheWarnung) : ''}
 
-  ${abschnitt('The comparison', vergleich,
-    'The line in this view that carries the most weight. Absolute shares carry '
-    + 'little; ratios between clients carry more, because the same measurement '
-    + 'error sits on both sides.')}
+  ${abschnitt('One word across the sessions', `
+    <form id="wort-form" class="suchzeile" autocomplete="off">
+      <input type="search" id="wort-eingabe" placeholder="A word — Angst, Mutter, Arbeit …"
+             aria-label="Word to plot across the sessions">
+      <button type="submit" class="knopf">Plot it</button>
+    </form>
+    <div id="wort-verlauf"></div>
+    <p class="wortwolke">${einstiege}</p>`,
+    'Rate per 1000 words of that speaker, not raw counts — a long session '
+    + 'otherwise has more of everything. Searched by lemma, so “Ängste” and '
+    + '“Angst” are one curve. Click a point to open the session.')}
 
-  ${abschnitt('Intervention profile per client', `<div class="profile">${profile}</div>`,
-    'Assigned by rule, confidence C. Click a category to see example turns — '
-    + 'read a few before believing the distribution.')}
+  ${abschnitt('Late sessions against early ones',
+    phase.genug
+      ? `<div class="wort-spalten">
+           <div><h4>More in the late half</h4>${keynessListe(phase.spaet ?? [])}</div>
+           <div><h4>More in the early half</h4>${keynessListe(phase.frueh ?? [])}</div>
+         </div>`
+      : `<p class="leer">Fewer than four sessions — there is no early and late
+         half to compare yet.</p>`,
+    sw.hinweis)}
 
-  ${abschnitt('Your idiolect', idiolekt,
-    'Your own formulaic phrases, counted across every client. Only phrases that '
-    + 'occur with more than one person: otherwise it is not idiolect, it is that '
-    + 'one case. Phrases are counted within a language, so a habit you have in '
-    + 'both will show up as two entries rather than one.')}
+  ${abschnitt('What comes and what goes',
+    bewegung.genug
+      ? `<div class="wort-spalten">
+           ${wortSpalte('Rising', bewegung.steigend, (e) => `ρ ${C.zahl(e.rho, 2)}`)}
+           ${wortSpalte('Fading', bewegung.fallend, (e) => `ρ ${C.zahl(e.rho, 2)}`)}
+           ${wortSpalte('Appears late', bewegung.neu, (e) => `from session ${esc(e.erst)}`)}
+           ${wortSpalte('Stops early', bewegung.verschwunden, (e) => `last in session ${esc(e.letzt)}`)}
+         </div>`
+      : `<p class="leer">Fewer than four sessions — a rank correlation over
+         three points is not an answer.</p>`,
+    'Rising and fading are the rank correlation of each word’s rate against '
+    + 'session order — the same calculation the trends use, applied to a single '
+    + 'word. Appearing and stopping are simpler and often say more: the first '
+    + 'and the last time.')}
+
+  ${komposita.length ? abschnitt('Compounds, split open',
+    kompositaListe(komposita)
+    + teilfrequenzListe(sw.teilfrequenzen ?? []),
+    '“Verlustangst” appears once and vanishes into the tail unless it is '
+    + 'decomposed — and that is exactly where the emotionally loaded vocabulary '
+    + 'hides. English writes its compounds open (“fear of loss”), so they are '
+    + 'already split and this block does not appear for English sessions.') : ''}
+
+  ${abschnitt('Against your other clients',
+    klient.keynessHinweis
+      ? `<p class="leer">${esc(klient.keynessHinweis)}</p>`
+      : keynessListe(klient.keyness ?? []),
+    'Log-likelihood against the rest of your caseload rather than against a '
+    + 'general corpus, and only against clients seen in the same language.')}
   `;
+}
+
+function wortSpalte(titel, eintraege, zusatz) {
+  const liste = eintraege ?? [];
+  if (!liste.length) return `<div><h4>${esc(titel)}</h4><p class="leer">Nothing here.</p></div>`;
+  return `<div><h4>${esc(titel)}</h4>
+    <ul class="wortliste">${liste.slice(0, 12).map((e) => `
+      <li><button class="wort klickbar" data-wortverlauf="${esc(e.anzeige ?? e.wort)}">${esc(e.anzeige ?? e.wort)}</button>
+        <span class="anzahl">${esc(e.anzahl)}×</span>
+        <span class="zusatz">${esc(zusatz(e))}</span></li>`).join('')}</ul></div>`;
 }
 
 /* ------------------------------------------------------------------ */

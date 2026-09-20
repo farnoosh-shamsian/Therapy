@@ -211,10 +211,6 @@ def test_gesamtlauf_ueber_die_beispiele(tmp_path):
     assert arc.rangkorrelation(anna["arc"]["serien"]["man_quote"]) < -0.5
     assert arc.rangkorrelation(anna["arc"]["serien"]["granularitaet"]) > 0.5
 
-    # Der Spiegel vergleicht die beiden Fälle.
-    assert bericht["spiegel"]["genugKlienten"] is True
-    assert bericht["spiegel"]["vergleich"]
-
     # Jede Zahl muss zurückführen: Marker-Treffer tragen Adressen.
     treffer = anna["sitzungen"][0]["marker"]["K"]["treffer"]
     turn, start, ende, form = treffer["man"][0]

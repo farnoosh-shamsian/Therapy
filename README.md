@@ -70,9 +70,32 @@ The page then makes literally no foreign request. (You can then delete the two
 
 ---
 
-## What files work
+## Getting your transcripts in
 
-`.txt` · `.md` · `.vtt` · `.srt` · `.json` (Whisper) · `.csv` · `.docx`
+**The short way: paste everything into the box.** One long text with your
+sessions one after another, in the order they happened. That is the normal
+case — a year of therapy usually lives in one document, not in twelve neatly
+named files.
+
+**Mark where each session starts** with a line of its own:
+
+```
+--- Session 7 — 2024-03-14 ---
+### Sitzung 7
+2024-03-14
+```
+
+Any of those works, and the number and date are read out of the line. Two such
+lines are enough to split the text; a single one is treated as a heading.
+
+**Without any marker**, a long text is cut into equal segments instead. They
+are called *Segment 1…N*, never *Session*, and the report says plainly that the
+trend you are looking at runs *within* the text rather than between sessions.
+
+**Or drop files** — that still works exactly as before, one file per session,
+all formats:
+
+`.txt` · `.md` · `.vtt` · `.srt` · `.json` (Whisper) · `.csv` · `.tsv` · `.docx`
 
 Anything that marks who is speaking works best:
 
@@ -102,30 +125,32 @@ client-jane_session-07_2024-03-14.txt
 
 **Language is detected per file**, from the text. If you would rather not leave
 it to a heuristic, put `_de` or `_en` in the name and that wins. Either way the
-detected language is shown in the ingest report, where a dropdown corrects it
+detected language is shown in *What was read*, where a dropdown corrects it
 in one click.
 
 **When something is not recognised, Thera.py tells you.** The first view after
-loading is the *ingest report*: per file, what was found — and which figures
-are therefore *unavailable*. Without timestamps there is no response latency,
-and it is left out rather than estimated.
+loading is *What was read*: per file, what was found, how the text was split
+into sessions, and which figures are therefore *unavailable*. Pasted text has
+no filename and so arrives as one unnamed case; the name is a label you can
+type in there, and it is neither analysed nor exported.
 
 ---
 
 ## The views
 
-**Ingest report** — what was read, in which language, and what is missing.
-Look at this first.
+**What was read** — what was found, in which language, how the text was split,
+and what is missing. Look at this first.
 
-**Session card** — one page per session: language markers, affect through the
-hour, talk ratio, question types, new vocabulary, dropped threads.
+**Session** — one page per session: language markers, affect through the hour,
+talk ratio, question types, new vocabulary, dropped threads.
 
-**Arc** — the year at once. Every marker as a trajectory, changepoints marked,
-the sociogram, compounds, and what distinguishes this client from the rest of
-your caseload.
+**Trends** — the year at once. Every marker as a trajectory, changepoints
+marked, and who enters and leaves the narrative.
 
-**Mirror** — across your whole caseload, about you. Intervention profile per
-client, the comparison between clients, and your own recurring formulas.
+**Keywords** — which words carry the case. What is distinctive about one
+session against the others, what separates the late sessions from the early
+ones, which vocabulary is rising and which is fading, compounds split open, and
+any word you name plotted across the whole text.
 
 **Concordance** is reachable from anywhere. Every number in the tool is
 clickable and opens the lines that produced it. That is not a convenience, it
@@ -149,7 +174,6 @@ Every figure carries a confidence grade in the interface:
 | | |
 |---|---|
 | **A** | well grounded, robustly computable |
-| **A\*** | well grounded — but only if the transcript has timestamps |
 | **B** | sound reasoning, heuristic implementation, useful as a trajectory |
 | **C** | exploratory. Interesting to look at, not to conclude from. |
 
@@ -179,12 +203,13 @@ And, without softening:
   the trajectories compare cleanly. Between the two they do not: the word lists
   are different sizes, so the levels sit differently for reasons that have
   nothing to do with the client. Wherever the tool puts the two side by side —
-  the Mirror's comparison, a client who switched language mid-course — it marks
-  the row and says what survives the crossing and what does not.
-- **The intervention classification in the Mirror is confidence C.** Rule-based,
-  no trained classifier. What carries weight there is not the absolute share of
-  your turns that are interpretations, but the comparison between clients: the
-  same measurement error sits on both sides and largely cancels.
+  a client who switched language mid-course — it marks the row and says what
+  survives the crossing and what does not.
+- **Keyness carries two numbers, and they answer different questions.** G²
+  says how confident a difference is and grows with the amount of text — over a
+  year almost everything ends up looking significant. Log ratio says how large
+  it is. Read them together, and read the lines behind them before believing
+  either.
 
 ### Consent
 
@@ -218,7 +243,7 @@ rather than faked:
 
 - **Compound splitting** is German-only. “Verlustangst” has to be prised open
   or it vanishes into the tail; English writes its compounds open (“fear of
-  loss”), so they arrive already split and the Arc view drops the block.
+  loss”), so they arrive already split and the Keywords view drops the block.
 - **Honorific forms** (`Sie`/`Ihnen`) are German-only. English has no
   T–V distinction, so the tile does not appear rather than showing a zero.
 
@@ -272,7 +297,6 @@ pysrc/therapy/       the actual work, pure Python
   threads.py          dropped threads
   people.py           sociogram
   arc.py              series across sessions, Bayesian changepoints
-  mirror.py           the therapist side, across all clients
   report.py           the JSON contract to the interface
   sprachen/           language detection and one pack per language
     de.py             German morphology, metrics, labels, tile order
@@ -292,7 +316,7 @@ the German numbers are unchanged after the rewrite, which is what
 `tests/test_marker.py` is there to prove.
 
 The interface has no hard-coded marker names at all. Which tiles a session card
-shows, which series the Arc draws, and every label and caveat come from the
+shows, which series the Trends view draws, and every label and caveat come from the
 report, keyed by the session's language.
 
 No bundler, no npm, no build step. Editing a `.py` file and pushing updates the
@@ -310,7 +334,7 @@ shared between the two packs exactly when both languages measure the same
 thing; `VERGLEICHBAR` in each pack records which pairs are *comparable*, and
 that word means “measures the same construct”, never “is the same number”.
 The translation to English happens in the label tables in `sprachen/de.py`,
-`sprachen/en.py` and `dialogue.py`, and in the two `intervention.py` files.
+`sprachen/en.py` and `dialogue.py`, and in the two `dialogmuster.py` files.
 
 **Zero runtime dependencies.** No numpy, no pandas, no spaCy, no `micropip`.
 Everything is standard library. That is not asceticism, it is what makes the
@@ -365,10 +389,10 @@ allowed to compare.
 `samples/` holds 32 synthetic transcripts of three invented cases — two German,
 one English — generated from sentence banks (`python samples/_generator.py`).
 They deliberately contain a trajectory with a step around session 9, so you can
-see that the Arc view and the changepoint detection do what they claim, and the
+see that the Trends view and the changepoint detection do what they claim, and the
 English case is there so that the bilingual behaviour is shown rather than
-asserted: the language column in the ingest report, the marked rows in the
-Mirror, and the empty keyness list that comes of having only one English client
+asserted: the language column in *What was read*, and the empty keyness list
+that comes of having only one English client
 to compare against.
 
 The English sentence bank is **not a translation** of the German one. It carries

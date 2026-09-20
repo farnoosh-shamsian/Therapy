@@ -28,8 +28,9 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
-from . import arc, dialogue, lexical, markers, mirror, people, sprachen, threads
-from .ingest import KLIENT, THERAPEUT, Sitzung, lies, sortiere_sitzungen
+from . import arc, dialogue, lexical, markers, people, sprachen, threads
+from .ingest import (KLIENT, SEGMENT_MIN_WOERTER, THERAPEUT, Befund, Sitzung,
+                     lies, segmentiere, sortiere_sitzungen)
 from .markers import SprecherMarker, kennzahlen
 from .pseudonym import Namenskandidat, Pseudonymisierer, finde_namen, pseudonymisiere_sitzungen
 
@@ -67,15 +68,58 @@ class Korpus:
         erfährt, hat die Kurven schon geglaubt.
         """
         neue: list[Sitzung] = []
+        befunde: list[Befund] = []
         for datei in dateien:
-            sitzung = lies(datei["name"], datei["inhalt"],
+            gelesen = lies(datei["name"], datei["inhalt"],
                            klient_id=klient_id or datei.get("klient"),
                            manuelle_sprecher=manuelle_sprecher,
                            sprache=sprache or datei.get("sprache"))
-            neue.append(sitzung)
+            neue.extend(gelesen)
+            if gelesen and gelesen[0].befund is not None:
+                befunde.append(gelesen[0].befund)
+
+        neue = self._notfalls_segmentieren(neue, datei_anzahl=len(dateien))
         self.sitzungen = sortiere_sitzungen(self.sitzungen + neue)
         self._analysiert = False
-        return [s.befund.als_dict() for s in neue if s.befund]
+        return [b.als_dict() for b in befunde]
+
+    def _notfalls_segmentieren(self, neue: list[Sitzung],
+                               datei_anzahl: int) -> list[Sitzung]:
+        """Schneidet einen langen Text ohne Sitzungsmarken in gleiche Stücke.
+
+        Die Entscheidung fällt hier und nicht in ``lies``, weil sie vom ganzen
+        Bestand abhängt: zwölf sauber benannte Dateien sind zwölf Sitzungen und
+        dürfen nicht noch einmal zerschnitten werden. Nur wenn am Ende fast
+        nichts dasteht — weniger als drei Sitzungen — und der Text trotzdem lang
+        ist, war es offenbar ein zusammengeschriebenes Jahr ohne Marken.
+        """
+        bestand = self.sitzungen + neue
+        if len(bestand) >= 3 or datei_anzahl > 2:
+            return neue
+        lang = [s for s in neue
+                if sum(len(t.text.split()) for t in s.turns) >= SEGMENT_MIN_WOERTER]
+        if not lang:
+            return neue
+        aufgeteilt: list[Sitzung] = []
+        for s in neue:
+            aufgeteilt.extend(segmentiere(s) if s in lang else [s])
+        return aufgeteilt
+
+    def klient_umbenennen(self, alt: str, neu: str) -> None:
+        """Gibt einem Fall einen Namen.
+
+        Die Fallkennung kam bisher ausschliesslich aus dem Dateinamen. Wer
+        einen Text einfügt, hat keinen Dateinamen und bekam deshalb einen Fall
+        namens „unbekannt“, den er nirgends ändern konnte. Der Name ist reine
+        Beschriftung — er wird nicht analysiert und landet nicht im Export.
+        """
+        neu = (neu or "").strip()[:40] or "unbekannt"
+        if neu == alt:
+            return
+        for sitzung in self.sitzungen:
+            if sitzung.klient_id == alt:
+                sitzung.klient_id = neu
+        self._analysiert = False
 
     def leeren(self) -> None:
         self.sitzungen = []
@@ -205,31 +249,19 @@ class Korpus:
         alle_indizes = list(self.indizes.values())
 
         klient_blocks = []
-        profile: list[mirror.Klientenprofil] = []
         for klient_id, sitzungen in klienten.items():
             index = self.indizes[klient_id]
-            dialoge = [self.dialoge[s.sid] for s in sitzungen]
-            profile.append(mirror.profil(klient_id, sitzungen, dialoge))
             klient_blocks.append(self._klient_block(klient_id, sitzungen, index,
                                                     alle_indizes))
 
         return {
             "version": VERSION,
             "klienten": klient_blocks,
-            "spiegel": {
-                "profile": [p.als_dict() for p in profile],
-                "vergleich": mirror.vergleich(profile),
-                "idiolekt": mirror.idiolekt(klienten),
-                "hinweis": mirror.HINWEIS,
-                "genugKlienten": len(profile) >= 2,
-            },
             "sprachen": self._sprachblock(),
             "beschriftung": self._beschriftung(),
             "hinweise": {
                 "faeden": threads.RAHMUNG,
                 "arc": arc.HINWEIS,
-                "spiegel": mirror.HINWEIS,
-                "spiegelSprachgrenze": mirror.HINWEIS_SPRACHGRENZE,
                 "geltung": GELTUNGSHINWEISE,
                 "sprache": SPRACHHINWEIS,
             },
@@ -264,7 +296,6 @@ class Korpus:
         """
         marker: dict[str, dict] = {}
         dialog: dict[str, dict] = {}
-        interventionen: dict[str, dict] = {}
         familien: dict[str, dict] = {}
         kacheln: dict[str, list] = {}
         arc_reihen: dict[str, list] = {}
@@ -278,7 +309,6 @@ class Korpus:
             }
             dialog[code] = {k: {"name": n, "konfidenz": c, "hinweis": h}
                             for k, (n, c, h) in dialogue.beschriftung(code).items()}
-            interventionen[code] = pak.intervention.ANZEIGE_NAMEN
             familien[code] = {f: pak.emotion.VALENZ.get(f, 0)
                               for f in pak.emotion.FAMILIEN}
             kacheln[code] = [list(k) for k in pak.KACHELN]
@@ -286,7 +316,7 @@ class Korpus:
 
         return {
             "marker": marker, "dialog": dialog,
-            "interventionen": interventionen, "familien": familien,
+            "familien": familien,
             "kacheln": kacheln, "arcReihen": arc_reihen,
         }
 
@@ -320,14 +350,25 @@ class Korpus:
         referenz, referenz_n = lexical.referenzfrequenzen(
             vergleichbare + [index], ausser=index)
         keyness = index.keyness(referenz, referenz_n) if referenz_n else []
-        keyness_hinweis = None
-        if not referenz_n and len(alle_indizes) > 1:
+        # Der Hinweis hing vorher daran, dass es *mehrere* Indizes gibt — wer
+        # genau einen Fall lud, bekam eine leere Liste und kein Wort dazu. Es
+        # gibt jetzt immer eine Begründung, und für den Fall ohne zweiten
+        # Klienten gibt es ausserdem zwei Achsen, die keinen brauchen.
+        if referenz_n:
+            keyness_hinweis = None
+        elif len(alle_indizes) > 1:
             keyness_hinweis = (
-                "No reference corpus in the same language. Keyness is computed "
-                "against your other clients, and comparing across languages "
-                "would measure the language rather than the client — so it is "
-                "left out rather than filled with something that looks like a "
-                "result.")
+                "No reference corpus in the same language. Keyness against your "
+                "other clients would measure the language rather than the "
+                "client here, so it is left out rather than filled with "
+                "something that looks like a result. The two axes below do not "
+                "need a second client.")
+        else:
+            keyness_hinweis = (
+                "Only one case is loaded, so there is nothing to be distinctive "
+                "*against*. The two axes below compare this text with itself "
+                "instead: one session against the others, and the late sessions "
+                "against the early ones.")
 
         sozio = people.soziogramm(sitzungen, self.pseudo.platzhalter)
         verlauf = people.verlauf(sozio["knoten"], sozio["sitzungen"])
@@ -371,7 +412,20 @@ class Korpus:
                            **people.eintritte_und_abgaenge(verlauf, sozio["sitzungen"])},
             "keyness": keyness,
             "keynessHinweis": keyness_hinweis,
-            "komposita": index.komposita(KLIENT),
+            "schluesselwoerter": {
+                "phase": index.keyness_phase(KLIENT),
+                "bewegung": index.vokabelbewegung(KLIENT),
+                "komposita": index.komposita(KLIENT),
+                "teilfrequenzen": [
+                    {"wort": w, "anzeige": index.anzeigeform(w), "anzahl": n}
+                    for w, n in index.teil_frequenzen(KLIENT).most_common(40)
+                ],
+                "haeufig": [
+                    {"wort": w, "anzeige": index.anzeigeform(w), "anzahl": n}
+                    for w, n in _haeufigste(index, KLIENT, 40)
+                ],
+                "hinweis": SCHLUESSELWORT_HINWEIS,
+            },
             "faeden": [f.als_dict() for f in threads.ueber_sitzungen(sitzungen)],
         }
 
@@ -409,6 +463,9 @@ class Korpus:
             "ttr": {sprecher: index.ttr(sitzung, sprecher)
                     for sprecher in (KLIENT, THERAPEUT)},
             "neuesVokabular": index.neues_vokabular(sitzung, KLIENT),
+            # Wovon war an diesem Tag die Rede und sonst nicht — die Keyness-
+            # Achse, die keinen zweiten Klienten braucht.
+            "keyness": index.keyness_sitzung(sitzung, KLIENT),
             "faeden": [f.als_dict() for f in threads.finde(sitzung)],
             "affektverlauf": self._affektverlauf(sitzung),
         }
@@ -450,6 +507,16 @@ class Korpus:
         self.analysiere()
         index = self.indizes.get(klient)
         return index.kollokationen(begriff, sprecher) if index else []
+
+    def wortverlauf(self, wort: str, klient: str,
+                    sprecher: str = KLIENT) -> dict:
+        """Ein Wort über die Sitzungen. Wird bei jeder Eingabe neu gerechnet
+        statt für jedes Wort im Bericht mitgeschickt — der Bericht wäre sonst
+        um den ganzen Wortschatz grösser, für eine Kurve, die man meistens
+        nicht anschaut."""
+        self.analysiere()
+        index = self.indizes.get(klient)
+        return index.wortverlauf(wort, sprecher) if index else {}
 
     def ausschnitt(self, klient: str, sid: str, turn: int,
                    start: int, end: int) -> dict:
@@ -531,6 +598,26 @@ class Korpus:
 # ---------------------------------------------------------------------------
 # Geltungshinweise — gehören in die Oberfläche, nicht in ein Dokument
 # ---------------------------------------------------------------------------
+
+SCHLUESSELWORT_HINWEIS = (
+    "Two numbers per word, and they answer different questions. G² says how "
+    "confident the difference is and grows with the amount of text — over a "
+    "year almost everything ends up looking significant. Log ratio says how "
+    "large it is: +1 means twice as often, +2 four times. Read them together, "
+    "and read the lines behind them before you believe either."
+)
+
+
+def _haeufigste(index, sprecher: str, grenze: int) -> list[tuple[str, int]]:
+    """Häufigste Inhaltslemmata — der Einstieg in den Wortverlauf.
+
+    Keyness zeigt das Besondere, aber man sucht auch das Naheliegende: wer
+    „Mutter“ eingeben will, soll es anklicken können statt es zu tippen.
+    """
+    stopp = index.stoppwoerter
+    return [(w, n) for w, n in index.lemma_frequenz[sprecher].most_common()
+            if w not in stopp and len(w) >= 3][:grenze]
+
 
 SPRACHHINWEIS = (
     "Each session is analysed in the language it was spoken in, with that "

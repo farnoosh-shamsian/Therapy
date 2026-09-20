@@ -31,6 +31,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 from . import sprachen
+from .arc import rangkorrelation
 from .ingest import KLIENT, THERAPEUT, Sitzung
 from .lexika import emotion as lex_emo
 from .tokenize import Token, tokenisiere, typ_token_verhaeltnis, zerlege_kompositum
@@ -101,6 +102,19 @@ class Index:
         self.frequenz: dict[str, Counter] = {THERAPEUT: Counter(), KLIENT: Counter()}
         self.lemma_frequenz: dict[str, Counter] = {THERAPEUT: Counter(), KLIENT: Counter()}
         self.gesamt: dict[str, int] = {THERAPEUT: 0, KLIENT: 0}
+        # Dasselbe noch einmal je Sitzung. Das ist die Grundlage für alles,
+        # was ein Wort über die Zeit betrachtet: Verlauf, steigend/fallend,
+        # und Keyness einer Sitzung gegen die übrigen. Ohne diese Zähler lässt
+        # sich nur sagen, *dass* ein Wort oft fällt, nicht *wann*.
+        self.lemma_je_sitzung: dict[str, dict[str, Counter]] = {}
+        self.gesamt_je_sitzung: dict[str, dict[str, int]] = {}
+        # Lemma -> die Wortformen, die darauf abgebildet wurden. Der Lemmatisierer
+        # ist bewusst grob (kein Parser, keine Modelle), und das war unauffällig,
+        # solange Keyness in einer Nebenansicht stand. Als Überschrift einer
+        # Wortansicht ist „aufgefall“ schlicht falsch zu lesen — angezeigt wird
+        # deshalb die häufigste tatsächlich gesprochene Form, gesucht weiter das
+        # Lemma.
+        self._formen_je_lemma: dict[str, Counter] = defaultdict(Counter)
         # Wortformen, die mindestens einmal gross geschrieben vorkamen.
         # Im Deutschen ist das der einzige verfügbare Substantiv-Hinweis
         # ohne Parser — und Komposita zerlegt man nur bei Substantiven,
@@ -113,6 +127,10 @@ class Index:
         for sitzung in self.sitzungen:
             self.sitzung_nr[sitzung.sid] = sitzung.nummer
             pak = sprachen.paket(getattr(sitzung, "sprache", sprachen.STANDARD))
+            je_sitzung = {THERAPEUT: Counter(), KLIENT: Counter()}
+            summe = {THERAPEUT: 0, KLIENT: 0}
+            self.lemma_je_sitzung[sitzung.sid] = je_sitzung
+            self.gesamt_je_sitzung[sitzung.sid] = summe
             for turn in sitzung.turns:
                 schluessel = (sitzung.sid, turn.idx)
                 toks = tokenisiere(turn.text, pak.CODE)
@@ -136,6 +154,21 @@ class Index:
                     self.frequenz[turn.sprecher][tok.klein] += 1
                     self.lemma_frequenz[turn.sprecher][lemma] += 1
                     self.gesamt[turn.sprecher] += 1
+                    je_sitzung[turn.sprecher][lemma] += 1
+                    summe[turn.sprecher] += 1
+                    self._formen_je_lemma[lemma][tok.klein] += 1
+
+    # -- Anzeige --------------------------------------------------------
+    def anzeigeform(self, lemma: str) -> str:
+        """Die häufigste gesprochene Form zu einem Lemma.
+
+        Bei Gleichstand gewinnt die kürzere: der Stamm ist meist das, was der
+        Lemmatisierer ohnehin gemeint hat.
+        """
+        formen = self._formen_je_lemma.get(lemma)
+        if not formen:
+            return lemma
+        return min(formen.items(), key=lambda p: (-p[1], len(p[0])))[0]
 
     # -- Sprache --------------------------------------------------------
     def _lemma(self, wort: str) -> str:
@@ -307,12 +340,181 @@ class Index:
             rel_ref = f_ref / referenz_gesamt
             richtung = 1 if rel_ziel >= rel_ref else -1
             ergebnis.append({
-                "wort": wort, "hier": f_ziel, "referenz": f_ref,
+                "wort": wort, "anzeige": self.anzeigeform(wort),
+                "hier": f_ziel, "referenz": f_ref,
                 "ll": round(ll * richtung, 2),
                 "faktor": round(rel_ziel / rel_ref, 2) if rel_ref else None,
+                "logRatio": _log_ratio(rel_ziel, rel_ref),
             })
         ergebnis.sort(key=lambda e: -e["ll"])
         return ergebnis[:grenze]
+
+    # -- Keyness ohne zweiten Klienten ----------------------------------
+    #
+    # Die Referenz war lange die übrige Fallgeschichte. Wer genau einen Fall
+    # lädt — und das ist der Normalfall, seit ein langer Text genügt — bekam
+    # damit eine leere Liste. Die beiden folgenden Achsen brauchen keinen
+    # zweiten Klienten: sie vergleichen den Text mit sich selbst.
+
+    def _zaehler_ueber(self, sids: list[str], sprecher: str) -> tuple[Counter, int]:
+        summe: Counter = Counter()
+        n = 0
+        for sid in sids:
+            summe.update(self.lemma_je_sitzung.get(sid, {}).get(sprecher, Counter()))
+            n += self.gesamt_je_sitzung.get(sid, {}).get(sprecher, 0)
+        return summe, n
+
+    def keyness_sitzung(self, sitzung: Sitzung, sprecher: str = KLIENT,
+                        min_frequenz: int = 3, grenze: int = 25) -> list[dict]:
+        """Was *diese* Stunde von den übrigen Stunden desselben Falls abhebt.
+
+        Klinisch die interessanteste Keyness-Achse und bis jetzt die einzige,
+        die es nicht gab: nicht „wie redet dieser Klient verglichen mit
+        anderen“, sondern „wovon war an diesem Tag die Rede und sonst nicht“.
+        """
+        andere = [s.sid for s in self.sitzungen if s.sid != sitzung.sid]
+        if not andere:
+            return []
+        referenz, referenz_n = self._zaehler_ueber(andere, sprecher)
+        ziel = self.lemma_je_sitzung.get(sitzung.sid, {}).get(sprecher, Counter())
+        ziel_n = self.gesamt_je_sitzung.get(sitzung.sid, {}).get(sprecher, 0)
+        return self._keyness_roh(ziel, ziel_n, referenz, referenz_n,
+                                 min_frequenz, grenze)
+
+    def keyness_phase(self, sprecher: str = KLIENT, min_frequenz: int = 4,
+                      grenze: int = 25) -> dict:
+        """Späte Sitzungen gegen frühe — der Wortschatz der Veränderung.
+
+        Bei ungerader Sitzungszahl fällt die mittlere Sitzung heraus statt
+        einer Hälfte zugeschlagen zu werden; sie würde die Kante verwischen,
+        die hier gerade interessiert.
+        """
+        sids = [s.sid for s in self.sitzungen]
+        if len(sids) < 4:
+            return {"spaet": [], "frueh": [], "genug": False}
+        halb = len(sids) // 2
+        frueh_ids, spaet_ids = sids[:halb], sids[-halb:]
+        frueh, frueh_n = self._zaehler_ueber(frueh_ids, sprecher)
+        spaet, spaet_n = self._zaehler_ueber(spaet_ids, sprecher)
+        return {
+            "spaet": self._keyness_roh(spaet, spaet_n, frueh, frueh_n,
+                                       min_frequenz, grenze),
+            "frueh": self._keyness_roh(frueh, frueh_n, spaet, spaet_n,
+                                       min_frequenz, grenze),
+            "genug": True,
+            "sitzungenJeHaelfte": halb,
+        }
+
+    def _keyness_roh(self, ziel: Counter, ziel_n: int, referenz: Counter,
+                     referenz_n: int, min_frequenz: int, grenze: int) -> list[dict]:
+        ziel_n = ziel_n or 1
+        referenz_n = referenz_n or 1
+        ergebnis = []
+        for wort, f_ziel in ziel.items():
+            if f_ziel < min_frequenz or wort in self.stoppwoerter or len(wort) < 3:
+                continue
+            f_ref = referenz.get(wort, 0)
+            ll = _log_likelihood(f_ziel, ziel_n, f_ziel + f_ref, ziel_n + referenz_n)
+            rel_ziel = f_ziel / ziel_n
+            rel_ref = f_ref / referenz_n
+            if rel_ziel < rel_ref:
+                continue        # hier interessiert nur, was *heraussticht*
+            ergebnis.append({
+                "wort": wort, "anzeige": self.anzeigeform(wort),
+                "hier": f_ziel, "referenz": f_ref,
+                "ll": round(ll, 2),
+                "faktor": round(rel_ziel / rel_ref, 2) if rel_ref else None,
+                "logRatio": _log_ratio(rel_ziel, rel_ref),
+            })
+        ergebnis.sort(key=lambda e: -e["ll"])
+        return ergebnis[:grenze]
+
+    # -- Ein Wort über die Zeit -----------------------------------------
+    def wortverlauf(self, wort: str, sprecher: str = KLIENT) -> dict:
+        """Ein Wort, Sitzung für Sitzung, als Rate je 1000 Wörter.
+
+        Rate und nicht Rohzahl: eine lange Stunde hat sonst automatisch mehr
+        von allem. Gesucht wird über das Lemma, damit „Ängste“ und „Angst“
+        dieselbe Kurve sind.
+        """
+        lemma = self._lemma(wort.strip().lower())
+        nummern, werte, roh = [], [], []
+        for s in self.sitzungen:
+            zaehler = self.lemma_je_sitzung.get(s.sid, {}).get(sprecher, Counter())
+            n = self.gesamt_je_sitzung.get(s.sid, {}).get(sprecher, 0)
+            treffer = zaehler.get(lemma, 0)
+            nummern.append(s.nummer)
+            roh.append(treffer)
+            werte.append(round(1000.0 * treffer / n, 3) if n else 0.0)
+        return {
+            "wort": wort.strip(), "lemma": lemma, "sprecher": sprecher,
+            "nummern": nummern, "werte": werte, "roh": roh,
+            "gesamt": sum(roh),
+        }
+
+    # -- Was kommt, was geht --------------------------------------------
+    def vokabelbewegung(self, sprecher: str = KLIENT, min_frequenz: int = 5,
+                        min_sitzungen: int = 4, grenze: int = 20) -> dict:
+        """Wortschatz, der steigt, fällt, auftaucht oder verschwindet.
+
+        Steigen und Fallen über die Rangkorrelation der Rate gegen die
+        Sitzungsfolge — dieselbe Rechnung, mit der ``arc`` seine Marker prüft,
+        nur auf ein einzelnes Wort angewandt. Auftauchen und Verschwinden sind
+        schlichter und oft aussagekräftiger: das erste und das letzte Mal.
+        """
+        sids = [s.sid for s in self.sitzungen]
+        leer = {"steigend": [], "fallend": [], "neu": [], "verschwunden": [],
+                "genug": False}
+        if len(sids) < min_sitzungen:
+            return leer
+
+        raten: dict[str, list[float]] = {}
+        gesamt = self.lemma_frequenz[sprecher]
+        for wort, anzahl in gesamt.items():
+            if anzahl < min_frequenz or wort in self.stoppwoerter or len(wort) < 3:
+                continue
+            reihe = []
+            for sid in sids:
+                n = self.gesamt_je_sitzung.get(sid, {}).get(sprecher, 0)
+                treffer = self.lemma_je_sitzung.get(sid, {}).get(sprecher, Counter()).get(wort, 0)
+                reihe.append(1000.0 * treffer / n if n else 0.0)
+            raten[wort] = reihe
+
+        bewegt = []
+        for wort, reihe in raten.items():
+            rho = rangkorrelation(reihe)
+            bewegt.append({"wort": wort, "anzeige": self.anzeigeform(wort),
+                           "anzahl": gesamt[wort], "rho": round(rho, 3),
+                           "werte": [round(v, 3) for v in reihe]})
+
+        steigend = sorted((e for e in bewegt if e["rho"] > 0.3), key=lambda e: -e["rho"])
+        fallend = sorted((e for e in bewegt if e["rho"] < -0.3), key=lambda e: e["rho"])
+
+        # Erst- und Letztauftritt. Die zweite Hälfte bzw. erste Hälfte als
+        # Schwelle: ein Wort, das erst spät kommt, und eines, das früh aufhört.
+        drittel = max(1, len(sids) // 3)
+        neu, verschwunden = [], []
+        for wort, reihe in raten.items():
+            treffer_idx = [i for i, v in enumerate(reihe) if v > 0]
+            if not treffer_idx:
+                continue
+            erst, letzt = treffer_idx[0], treffer_idx[-1]
+            eintrag = {"wort": wort, "anzeige": self.anzeigeform(wort),
+                       "anzahl": gesamt[wort],
+                       "erst": self.sitzungen[erst].nummer,
+                       "letzt": self.sitzungen[letzt].nummer}
+            if erst >= len(sids) - drittel:
+                neu.append(eintrag)
+            if letzt < drittel:
+                verschwunden.append(eintrag)
+
+        return {
+            "steigend": steigend[:grenze],
+            "fallend": fallend[:grenze],
+            "neu": sorted(neu, key=lambda e: -e["anzahl"])[:grenze],
+            "verschwunden": sorted(verschwunden, key=lambda e: -e["anzahl"])[:grenze],
+            "genug": True,
+        }
 
     # -- Komposita ------------------------------------------------------
     def komposita(self, sprecher: str = KLIENT, grenze: int = 60) -> list[dict]:
@@ -437,6 +639,19 @@ def _log_likelihood(a: int, a_gesamt: int, b: int, b_gesamt: int) -> float:
     if b > 0 and e2 > 0:
         wert += b * math.log(b / e2)
     return 2.0 * wert
+
+
+def _log_ratio(rel_ziel: float, rel_ref: float) -> float | None:
+    """Effektstärke neben dem Signifikanzwert.
+
+    G² sagt, wie sicher ein Unterschied ist, und wird mit der Textmenge
+    beliebig gross — bei einem Jahr Transkript steht am Ende fast alles oben.
+    Log Ratio sagt, wie *gross* der Unterschied ist: +1 heisst doppelt so
+    häufig, +2 viermal. Erst beide zusammen sind eine Aussage.
+    """
+    if rel_ziel <= 0 or rel_ref <= 0:
+        return None
+    return round(math.log2(rel_ziel / rel_ref), 2)
 
 
 def referenzfrequenzen(indizes: list[Index], ausser: Index | None = None,

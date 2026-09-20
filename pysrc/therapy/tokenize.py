@@ -620,16 +620,6 @@ def zerlege_kompositum(
     return bestes
 
 
-# ---------------------------------------------------------------------------
-# n-Gramme
-# ---------------------------------------------------------------------------
-
-def ngramme(folge: list[str], n: int) -> list[tuple[str, ...]]:
-    if n <= 0 or len(folge) < n:
-        return []
-    return [tuple(folge[i: i + n]) for i in range(len(folge) - n + 1)]
-
-
 def typ_token_verhaeltnis(formen: list[str], fenster: int = 100) -> float:
     """Standardisiertes Type-Token-Verhältnis (STTR).
 

@@ -5,4 +5,4 @@ stehen die Begründungen und vor allem die *Ausschlüsse* im Quelltext und nicht
 in einer Dokumentation, die niemand liest.
 """
 
-from . import marker, emotion, funktion, intervention  # noqa: F401
+from . import marker, emotion, funktion, dialogmuster  # noqa: F401

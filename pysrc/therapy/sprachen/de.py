@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import re
 
-# ``emotion``, ``funktion`` und ``intervention`` sehen hier ungenutzt aus und
-# sind es nicht: sie gehören zum Paketvertrag. dialogue.py, mirror.py,
-# threads.py und people.py greifen sie als ``pak.funktion`` usw. ab.
-from ..lexika import emotion, funktion, intervention, marker as lex  # noqa: F401
+# ``emotion`` und ``funktion`` sehen hier ungenutzt aus und sind es nicht:
+# sie gehören zum Paketvertrag. dialogue.py, threads.py und people.py greifen
+# sie als ``pak.funktion`` usw. ab.
+from ..lexika import dialogmuster, emotion, funktion, marker as lex  # noqa: F401
 from ..tokenize import ABKUERZUNGEN_DE, lemma_grob
 
 CODE = "de"

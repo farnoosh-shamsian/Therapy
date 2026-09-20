@@ -44,18 +44,17 @@ const PY_DATEIEN = [
   'therapy/threads.py',
   'therapy/people.py',
   'therapy/arc.py',
-  'therapy/mirror.py',
   'therapy/report.py',
   'therapy/lexika/__init__.py',
   'therapy/lexika/marker.py',
   'therapy/lexika/emotion.py',
   'therapy/lexika/funktion.py',
-  'therapy/lexika/intervention.py',
+  'therapy/lexika/dialogmuster.py',
   'therapy/lexika_en/__init__.py',
   'therapy/lexika_en/marker.py',
   'therapy/lexika_en/emotion.py',
   'therapy/lexika_en/funktion.py',
-  'therapy/lexika_en/intervention.py',
+  'therapy/lexika_en/dialogmuster.py',
   'therapy/sprachen/__init__.py',
   'therapy/sprachen/de.py',
   'therapy/sprachen/en.py',
@@ -69,6 +68,10 @@ const App = {
   ansicht: 'befund',
   klientId: null,
   sitzungIdx: 0,
+  // Das zuletzt geplottete Wort, damit die Kurve einen Ansichtswechsel
+  // übersteht. Der Bericht trägt sie nicht mit: er wäre sonst um den ganzen
+  // Wortschatz grösser, für eine Kurve, die man meistens nicht anschaut.
+  wort: null,
   bereit: false,
 };
 
@@ -144,6 +147,13 @@ async function ladePyodide() {
   $('#version').textContent = 'v' + App.ot.VERSION;
 }
 
+/* Lässt den Browser einmal zeichnen, bevor der Hauptthread blockiert wird.
+ * Ein Timer und kein requestAnimationFrame: in einem Hintergrundtab feuert rAF
+ * nicht, und die Auswertung stünde dann still, bis jemand hinschaut. */
+function atemzug() {
+  return new Promise((fertig) => setTimeout(fertig, 0));
+}
+
 /* The bridge: every Python function returns a JSON string. */
 function py(name, ...args) {
   return JSON.parse(App.ot[name](...args));
@@ -190,13 +200,30 @@ async function verarbeite(dateien) {
   }
 }
 
+/* Eingefügter Text geht denselben Weg wie eine Datei — er *ist* eine Datei,
+ * nur ohne Dateisystem. Zwei Pfade nebeneinander wären zwei Pfade, die
+ * auseinanderlaufen. Der Dateiname ist frei erfunden und dient nur dazu, dass
+ * der Befund eine Zeile bekommt, die man lesen kann. */
+async function verarbeiteEingefuegtes() {
+  const feld = $('#einfuegen');
+  const text = feld.value.trim();
+  if (!text) {
+    feld.focus();
+    return;
+  }
+  await verarbeite([new File([text], 'pasted-text.txt', { type: 'text/plain' })]);
+}
+
 async function analysiere(bestaetigte) {
   status('Replacing names …');
   py('pseudonymisiere', JSON.stringify(bestaetigte));
   status('Analysing — a year of transcripts takes a moment …');
-  // One frame of breathing room so the loading state is actually painted
-  // before Pyodide blocks the main thread for a few seconds.
-  await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  // Breathing room so the loading state is actually painted before Pyodide
+  // blocks the main thread for a few seconds. Deliberately a timer and not
+  // requestAnimationFrame: rAF does not fire in a hidden tab, so switching
+  // away right after confirming the names stalled the analysis until you
+  // came back and looked at it.
+  await atemzug();
   App.bericht = py('bericht');
   statusFertig();
 
@@ -265,7 +292,8 @@ function zeichne() {
   if (!App.bericht) return;
 
   if (App.ansicht === 'befund') {
-    ziel.innerHTML = V.befundAnsicht(App.befunde, App.bericht.hinweise?.sprache)
+    ziel.innerHTML = V.befundAnsicht(App.befunde, App.bericht.hinweise?.sprache,
+      App.bericht.klienten)
       + V.geltung(App.bericht.hinweise?.geltung ?? []);
   } else if (App.ansicht === 'sitzung' && klient) {
     const sitzung = klient.sitzungen[App.sitzungIdx];
@@ -273,9 +301,13 @@ function zeichne() {
       App.bericht.hinweise, klient.arc.serien);
   } else if (App.ansicht === 'bogen' && klient) {
     ziel.innerHTML = V.bogen(klient, App.bericht.beschriftung, App.bericht.hinweise);
-  } else if (App.ansicht === 'spiegel') {
-    ziel.innerHTML = V.spiegel(App.bericht.spiegel, App.bericht.beschriftung,
-      App.bericht.hinweise);
+  } else if (App.ansicht === 'woerter' && klient) {
+    ziel.innerHTML = V.woerter(klient, App.bericht.hinweise);
+    $('#wort-form')?.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      zeichneWortverlauf($('#wort-eingabe').value);
+    });
+    if (App.wort) zeichneWortverlauf(App.wort, { behalten: true });
   } else if (App.ansicht === 'konkordanz') {
     ziel.innerHTML = konkordanzAnsicht();
     $('#kwic-eingabe')?.focus();
@@ -295,12 +327,27 @@ function zeigeBefund() {
  * needs a one-click correction rather than a paragraph of hedging — the same
  * reasoning as the speaker swap. Changing it re-runs the whole analysis,
  * because every word list downstream depends on it. */
+/* Der Fallname ist Beschriftung, keine Messung — deshalb wird nach dem
+ * Umbenennen zwar neu gerechnet (die Gruppierung hängt daran), aber nichts
+ * gefragt und nichts gewarnt. */
+async function benenneKlient(alt, neu) {
+  if (!neu.trim() || neu.trim() === alt) return;
+  py('klient_umbenennen', alt, neu);
+  status('Renaming …');
+  await atemzug();
+  App.bericht = py('bericht');
+  statusFertig();
+  if (App.klientId === alt) App.klientId = neu.trim().slice(0, 40);
+  bauKlientenwahl();
+  zeichne();
+}
+
 async function setzeSprache(sid, code) {
   py('sprache_setzen', sid, code);
   App.befunde = py('befunde');
   if (App.bericht) {
     status('Re-analysing in the chosen language …');
-    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+    await atemzug();
     App.bericht = py('bericht');
     statusFertig();
     bauKlientenwahl();
@@ -381,6 +428,33 @@ function suche(begriff, sprecher = '') {
   fuehreSucheAus();
 }
 
+/* Der Wortverlauf wird bei jeder Eingabe frisch gerechnet statt im Bericht
+ * mitgeliefert — siehe App.wort. Gezeichnet wird mit demselben verlauf(), das
+ * die Marker benutzen, damit eine Wortkurve und eine Markerkurve dasselbe
+ * bedeuten und dieselben Klicks vertragen. */
+function zeichneWortverlauf(begriff, { behalten = false } = {}) {
+  const wort = String(begriff ?? '').trim();
+  const klient = aktiverKlient();
+  const ziel = $('#wort-verlauf');
+  if (!wort || !klient || !ziel) return;
+
+  if (!behalten) App.wort = wort;
+  const daten = py('wortverlauf', wort, klient.id);
+  const feld = $('#wort-eingabe');
+  if (feld) feld.value = wort;
+
+  if (!daten.gesamt) {
+    ziel.innerHTML = `<p class="leer">“${C.esc(wort)}” does not occur in this
+      client's sessions.</p>`;
+    return;
+  }
+  ziel.innerHTML = `
+    <p class="treffer-zahl">${daten.gesamt} occurrences of “${C.esc(daten.wort)}”</p>
+    ${C.verlauf(daten.werte, daten.nummern, { hoehe: 200, breite: 720, klickbar: true })}
+    <p class="block-hinweis">Per 1000 words.
+      <button class="wort klickbar" data-suche="${C.esc(daten.wort)}">See the lines</button></p>`;
+}
+
 function fuehreSucheAus() {
   const begriff = $('#kwic-eingabe').value.trim();
   if (!begriff) return;
@@ -434,6 +508,7 @@ function verdrahte() {
   document.addEventListener('drop', (e) => e.preventDefault());
 
   $('#dateiwahl').addEventListener('change', (ev) => verarbeite([...ev.target.files]));
+  $('#einfuegen-los').addEventListener('click', verarbeiteEingefuegtes);
   $('#beispiele').addEventListener('click', ladeBeispiele);
   $('#export').addEventListener('click', exportiere);
   $('#neu').addEventListener('click', () => {
@@ -456,6 +531,8 @@ function verdrahte() {
   document.addEventListener('change', (ev) => {
     if (ev.target.matches?.('.sprachwahl')) {
       setzeSprache(ev.target.dataset.sid, ev.target.value);
+    } else if (ev.target.matches?.('.fallname-feld')) {
+      benenneKlient(ev.target.dataset.klient, ev.target.value);
     }
   });
 
@@ -499,6 +576,10 @@ function behandleKlick(ev) {
                 ziel.dataset.klient, ziel.dataset.titel, ziel.dataset.hinweis);
   } else if (ziel.dataset.suche) {
     suche(ziel.dataset.suche);
+  } else if (ziel.dataset.person) {
+    suche(ziel.dataset.person);
+  } else if (ziel.dataset.wortverlauf) {
+    zeichneWortverlauf(ziel.dataset.wortverlauf);
   } else if (ziel.dataset.faden) {
     zeigeTurns(ziel.dataset.faden, Number(ziel.dataset.turn));
   } else if (ziel.dataset.sid) {
@@ -520,20 +601,6 @@ function behandleKlick(ev) {
       + C.verlauf(klient.arc.serien[s], klient.arc.nummern, {
         hoehe: 260, breite: 760, wechselpunkte: klient.arc.wechselpunkte, klickbar: true,
       }));
-  } else if (ziel.dataset.marker?.startsWith('intervention:')) {
-    const [, klientId, kategorie] = ziel.dataset.marker.split(':');
-    const profil = App.bericht.spiegel.profile.find((p) => p.klient === klientId);
-    const belege = profil?.belege?.[kategorie] ?? [];
-    const namen = V.fuerSprache(App.bericht.beschriftung,
-      profil?.sprachen?.[0]).interventionen;
-    oeffneSchublade(`${namen[kategorie] ?? kategorie} — ${klientId}`,
-      belege.length
-        ? `<ol class="kwic">${belege.map(([sid, turn, text]) => `
-            <li class="kwic-zeile klickbar" tabindex="0" role="button"
-                data-sid="${C.esc(sid)}" data-turn="${C.esc(turn)}">
-              <span class="kwic-ort">${C.esc(turn)}</span>
-              <span class="kwic-treffer">${C.esc(text)}</span></li>`).join('')}</ol>`
-        : '<p class="leer">No examples.</p>');
   } else if (ziel.classList.contains('balken-zeile')) {
     const wort = ziel.querySelector('.balken-label')?.textContent?.trim();
     if (wort) suche(wort);

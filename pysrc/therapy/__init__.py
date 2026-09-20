@@ -79,6 +79,15 @@ def kollokationen(begriff: str, klient: str, sprecher: str = KLIENT) -> str:
     return _json(korpus.kollokationen(begriff, klient, sprecher))
 
 
+def klient_umbenennen(alt: str, neu: str) -> str:
+    korpus.klient_umbenennen(alt, neu)
+    return _json({"ok": True})
+
+
+def wortverlauf(wort: str, klient: str, sprecher: str = KLIENT) -> str:
+    return _json(korpus.wortverlauf(wort, klient, sprecher))
+
+
 def ausschnitt(klient: str, sid: str, turn: int, start: int, end: int) -> str:
     return _json(korpus.ausschnitt(klient, sid, int(turn), int(start), int(end)))
 

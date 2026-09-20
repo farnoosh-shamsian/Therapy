@@ -17,8 +17,8 @@ vergleichbar.** Beide rechnen über sprachspezifische Wortmengen — deutsche
 Funktionswörter gegen deutsche, englische gegen englische — und die
 Kategorien haben in den beiden Sprachen unterschiedliche Grösse. Innerhalb
 eines Falles ist die Zahl aussagekräftig. Zwischen einem deutschen und einem
-englischen Fall ist sie es nicht, und die Spiegel-Ansicht sagt das dort, wo
-sie beide nebeneinanderstellt.
+englischen Fall ist sie es nicht — und bei einem Fall, dessen Sitzungen die
+Sprache wechseln, sagt der Klientenblock das über der Kurve.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ _MUSTER_CACHE: dict[str, dict[str, list]] = {}
 
 def _muster(pak) -> dict[str, list]:
     if pak.CODE not in _MUSTER_CACHE:
-        quelle = pak.intervention.MUSTER
+        quelle = pak.dialogmuster.MUSTER
         _MUSTER_CACHE[pak.CODE] = {
             schluessel: [re.compile(m) for m in quelle[schluessel]]
             for schluessel in ("frage_offen", "frage_geschlossen", "rueckkanal")
@@ -69,11 +69,6 @@ class Dialogkennzahlen:
     lsm_verlauf: list[list] = field(default_factory=list)
     # Muster
     lang_kurz: list[int] = field(default_factory=list)
-    # Nur mit Zeitstempeln
-    tempo: dict[str, float] = field(default_factory=dict)
-    latenz_median: float | None = None
-    pausen: list[list] = field(default_factory=list)
-    zeitstempel: bool = False
 
     def als_dict(self) -> dict:
         return {
@@ -92,11 +87,6 @@ class Dialogkennzahlen:
             "lsm": round(self.lsm, 4),
             "lsmVerlauf": self.lsm_verlauf,
             "langKurz": self.lang_kurz,
-            "tempo": {k: round(v, 1) for k, v in self.tempo.items()},
-            "latenzMedian": (round(self.latenz_median, 2)
-                             if self.latenz_median is not None else None),
-            "pausen": self.pausen,
-            "zeitstempel": self.zeitstempel,
         }
 
 
@@ -199,7 +189,6 @@ def analysiere(sitzung: Sitzung) -> Dialogkennzahlen:
     woerter: Counter = Counter()
     turns: Counter = Counter()
     laengen: dict[str, list[int]] = {THERAPEUT: [], KLIENT: []}
-    redezeit: dict[str, float] = {THERAPEUT: 0.0, KLIENT: 0.0}
 
     for turn in sitzung.turns:
         toks = tokenisiere(turn.text, code)
@@ -213,8 +202,6 @@ def analysiere(sitzung: Sitzung) -> Dialogkennzahlen:
         else:
             turns[turn.sprecher] += 1
             laengen[turn.sprecher].append(n)
-        if turn.dauer:
-            redezeit[turn.sprecher] += turn.dauer
 
     k.woerter = dict(woerter)
     k.turns = dict(turns)
@@ -277,26 +264,6 @@ def analysiere(sitzung: Sitzung) -> Dialogkennzahlen:
                 if la >= t_lang and lb <= k_kurz:
                     k.lang_kurz.append(a.idx)
 
-    # -- Zeitabhängiges, nur wenn Zeitstempel da sind -----------------------
-    k.zeitstempel = sitzung.hat_zeitstempel
-    if k.zeitstempel:
-        for sp in (THERAPEUT, KLIENT):
-            if redezeit[sp] > 0:
-                k.tempo[sp] = 60.0 * woerter[sp] / redezeit[sp]
-        latenzen = []
-        for a, b in zip(sitzung.turns, sitzung.turns[1:]):
-            if a.ende_sek is None or b.start_sek is None:
-                continue
-            luecke = b.start_sek - a.ende_sek
-            if luecke < -0.5:
-                continue        # Überlappung sagt über Latenz nichts
-            if a.sprecher == THERAPEUT and b.sprecher == KLIENT:
-                latenzen.append(luecke)
-            if luecke >= 3.0:
-                k.pausen.append([a.idx, b.idx, round(luecke, 1)])
-        if latenzen:
-            k.latenz_median = statistics.median(latenzen)
-
     return k
 
 
@@ -344,10 +311,6 @@ _BESCHRIFTUNG_BASIS = {
     "lsm": ("Style matching", "B",
             "Convergence in function-word use. Dips within a session are candidates "
             "for ruptures — candidates, not findings."),
-    "latenzMedian": ("Response latency", "A*",
-                     "Requires timestamps. Without them the number is absent rather "
-                     "than estimated."),
-    "tempo": ("Speech rate", "A*", "Words per minute. Requires timestamps."),
 }
 
 # Was sich zwischen den Sprachen an der Beschriftung ändert — und nur das.

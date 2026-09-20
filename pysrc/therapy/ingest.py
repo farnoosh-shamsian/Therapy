@@ -67,12 +67,19 @@ class Sitzung:
     format: str = "?"
     sprache: str = sprachen.STANDARD
     befund: "Befund | None" = None
+    # Position in der Quelldatei — hält aufgeteilte Sitzungen ohne Datum in der
+    # Reihenfolge, in der sie im Text standen.
+    quelle_idx: int = 0
+    # True, wenn das hier keine echte Sitzung ist, sondern ein gleich grosses
+    # Stück eines Textes ohne Sitzungsmarken. Die Oberfläche sagt das dazu.
+    ist_segment: bool = False
 
     @property
     def titel(self) -> str:
         teile = []
         if self.nummer is not None:
-            teile.append(f"Session {self.nummer:02d}")
+            wort = "Segment" if self.ist_segment else "Session"
+            teile.append(f"{wort} {self.nummer:02d}")
         if self.datum:
             teile.append(self.datum)
         return " · ".join(teile) if teile else self.dateiname
@@ -114,6 +121,13 @@ class Befund:
     sprache_quelle: str = "erkannt"     # "erkannt" | "dateiname" | "manuell" | "standard"
     sprache_sicherheit: float = 0.0
     anteil_fremdsprache: float = 0.0
+    # Wie die Datei in Sitzungen zerfiel: "keine" (eine Datei = eine Sitzung),
+    # "separator" (Sitzungsmarken im Text gefunden) oder "segmente" (keine
+    # Marken, in gleich grosse Stücke geschnitten).
+    teilung: str = "keine"
+    sitzungen_info: list[dict] = field(default_factory=list)
+    # Roh-Fundstellen der Sitzungsmarken, (Turn-Index, Kopfdaten). Intern.
+    abschnitt_marken: list[dict] = field(default_factory=list)
 
     def als_dict(self) -> dict:
         return {
@@ -132,6 +146,8 @@ class Befund:
             "spracheQuelle": self.sprache_quelle,
             "spracheSicherheit": round(self.sprache_sicherheit, 3),
             "anteilFremdsprache": round(self.anteil_fremdsprache, 3),
+            "teilung": self.teilung,
+            "sitzungen": self.sitzungen_info,
         }
 
 
@@ -237,6 +253,14 @@ def _parse_txt(text: str, befund: Befund) -> list[Turn]:
         if not zeile:
             aktuell = None      # Leerzeile beendet den Turn
             continue
+        kopf = sitzungskopf(zeile)
+        if kopf is not None:
+            # Die Marke steht *vor* dem naechsten Turn — der Index, den wir uns
+            # merken, ist deshalb die Laenge der bisherigen Turnliste.
+            kopf["turn"] = len(turns)
+            befund.abschnitt_marken.append(kopf)
+            aktuell = None
+            continue
         if _ist_metazeile(zeile):
             continue
         m = _LABEL_ZEILE.match(zeile)
@@ -259,6 +283,79 @@ def _parse_txt(text: str, befund: Befund) -> list[Turn]:
 
     befund.labels_gefunden = sorted(labels, key=lambda k: -labels[k])
     return turns
+
+
+# ---------------------------------------------------------------------------
+# Sitzungsmarken in einem langen Text
+# ---------------------------------------------------------------------------
+#
+# Ein Jahr Therapie liegt oft in *einer* Datei. Bis hierher war eine Datei
+# immer genau eine Sitzung, und ein zusammengeklebtes Jahr wurde damit zu
+# einem einzigen Punkt — der Verlauf, also der ganze Zweck des Werkzeugs,
+# fiel lautlos aus.
+#
+# Zwei Klassen von Marken, bewusst getrennt:
+#
+# *stark*  — die Zeile sagt selbst, dass hier eine Sitzung beginnt: sie nennt
+#            "Sitzung"/"Session" mit einer Zahl, oder sie ist nichts als ein
+#            Datum. Zwei davon genügen zum Teilen.
+# *schwach* — eine blosse Trennlinie (``---``, ``===``). Ohne weitere Angabe
+#            ist das ein Hinweis, keine Aussage; sie wird nur benutzt, wenn
+#            keine starke Marke da ist und die entstehenden Stücke tragfähig
+#            sind.
+#
+# Was eine Marke *nicht* tut: sie verschwindet nicht mehr stillschweigend.
+# Vorher fiel "Session 3:" durch ``_plausibles_label`` und landete als
+# gesprochener Text im vorigen Turn.
+
+_KOPF_DATUM = re.compile(
+    r"^[\s#\-=*_\[\(]*"
+    r"(\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./]\d{1,2}[-./]\d{4})"
+    r"[\s#\-=*_\]\).,:]*$")
+
+_KOPF_SITZUNG = re.compile(
+    r"^[\s#\-=*_\[\(]*"
+    r"(sitzung|session|termin|stunde|hour|meeting)\b.{0,70}$", re.I)
+
+_KOPF_REGEL = re.compile(r"^\s*([-=*_])\1{2,}\s*$")
+
+# Ein Abschnitt unter dieser Turn-Zahl ist kein Abschnitt, sondern ein
+# Streuner — er wird an den vorigen angehängt statt eigene Sitzung zu werden.
+MIN_TURNS_JE_ABSCHNITT = 4
+
+# Rueckfallebene: ein langer Text ganz ohne Marken wird in gleich grosse
+# Stuecke geschnitten. Unter SEGMENT_MIN_WOERTER lohnt das nicht — da ist der
+# Text schlicht eine Sitzung.
+SEGMENT_MIN_WOERTER = 4000
+SEGMENT_ZIEL = 12
+SEGMENT_MIN = 6
+SEGMENT_MAX = 20
+
+
+def sitzungskopf(zeile: str) -> dict | None:
+    """Erkennt eine Sitzungsmarke und liest Nummer und Datum aus ihr heraus.
+
+    Nummer und Datum kommen aus denselben Mustern, die ``metadaten_aus_name``
+    auf Dateinamen anwendet — was im Dateinamen gilt, gilt auch in der Zeile.
+    """
+    zeile = zeile.strip()
+    if not zeile or len(zeile) > 120:
+        return None
+
+    if _KOPF_DATUM.match(zeile):
+        # Das Leerzeichen schuetzt "14.03.2024" davor, dass ".2024" als
+        # Dateiendung abgeschnitten wird.
+        _, datum, _ = metadaten_aus_name(zeile + " ")
+        return {"art": "stark", "nummer": None, "datum": datum, "zeile": zeile}
+
+    if _KOPF_SITZUNG.match(zeile) and re.search(r"\d", zeile):
+        nummer, datum, _ = metadaten_aus_name(zeile + " ")
+        return {"art": "stark", "nummer": nummer, "datum": datum, "zeile": zeile}
+
+    if _KOPF_REGEL.match(zeile):
+        return {"art": "schwach", "nummer": None, "datum": None, "zeile": zeile}
+
+    return None
 
 
 _META_MUSTER = re.compile(
@@ -502,7 +599,7 @@ def ordne_sprecher_zu(
             "No speaker labels found. The text is read as a single voice.")
         befund.nicht_verfuegbar += [
             "talk ratio", "turn lengths", "question types", "lexical uptake",
-            "style matching", "dropped threads", "mirror view",
+            "style matching", "dropped threads",
         ]
         return
 
@@ -693,8 +790,16 @@ def lies(
     klient_id: str | None = None,
     manuelle_sprecher: dict[str, str] | None = None,
     sprache: str | None = None,
-) -> Sitzung:
-    """Liest eine Datei zu einer :class:`Sitzung` mit :class:`Befund`."""
+) -> list[Sitzung]:
+    """Liest eine Datei zu einer oder mehreren :class:`Sitzung` mit :class:`Befund`.
+
+    Eine Datei war lange genau eine Sitzung. Das stimmt, solange jemand seine
+    Stunden einzeln ablegt, und es stimmt nicht mehr, sobald er ein Jahr in ein
+    Dokument schreibt — genau der Fall, für den dieses Werkzeug gemacht ist.
+    Trägt der Text Sitzungsmarken, wird an ihnen getrennt; trägt er keine,
+    bleibt es bei einer Sitzung, und ``Korpus.lade`` entscheidet dann mit Blick
+    auf den ganzen Bestand, ob gleichmässig segmentiert wird.
+    """
     fmt = erkenne_format(dateiname, inhalt)
     befund = Befund(dateiname=dateiname, format=fmt)
 
@@ -725,20 +830,22 @@ def lies(
     # gefallen sind: erst welche Sprache, dann wer spricht.
     sprache_code = bestimme_sprache(turns, dateiname, befund, sprache)
 
+    # Die Sprecherzuordnung läuft über die *ganze* Datei und nicht je Abschnitt.
+    # Die Rateregel ("wer weniger redet, ist der Therapeut") wird mit mehr Text
+    # nicht schlechter, und ein Sprecher, der in Sitzung 3 anders heisst als in
+    # Sitzung 4, wäre schlimmer als eine unsichere Zuordnung.
     ordne_sprecher_zu(turns, befund, manuelle_sprecher)
 
     befund.turns = len(turns)
     befund.woerter = sum(len(t.text.split()) for t in turns)
     befund.zeitstempel = any(t.start_sek is not None for t in turns)
-    if not befund.zeitstempel:
-        befund.nicht_verfuegbar += ["speech rate", "pauses", "response latency"]
     if befund.turns < 6:
         befund.warnungen.append(
             "Very few turns detected. The format was probably misread — worth a "
             "look at the raw view.")
 
     nummer, datum, klient_aus_name = metadaten_aus_name(dateiname)
-    sitzung = Sitzung(
+    ganz = Sitzung(
         sid=dateiname,
         dateiname=dateiname,
         turns=turns,
@@ -749,16 +856,184 @@ def lies(
         sprache=sprache_code,
         befund=befund,
     )
-    return sitzung
+
+    abschnitte = _abschnitte_aus_marken(befund.abschnitt_marken, len(turns))
+    if not abschnitte:
+        befund.sitzungen_info = [_sitzung_info(ganz)]
+        return [ganz]
+
+    sitzungen = [
+        _teilsitzung(ganz, a["start"], a["ende"], i,
+                     nummer=a["nummer"], datum=a["datum"], ist_segment=False)
+        for i, a in enumerate(abschnitte)
+    ]
+    # Nummern nur dann erfinden, wenn der Text selbst keine genannt hat.
+    if all(t.nummer is None for t in sitzungen):
+        for i, t in enumerate(sitzungen, start=1):
+            t.nummer = i
+    _sprache_je_abschnitt(sitzungen, befund, sprache)
+
+    befund.teilung = "separator"
+    befund.sitzungen_info = [_sitzung_info(t) for t in sitzungen]
+    return sitzungen
+
+
+def _sprache_je_abschnitt(sitzungen: list[Sitzung], befund: Befund,
+                          manuell: str | None) -> None:
+    """Bestimmt die Sprache je Abschnitt neu, ohne den Befund vollzuschreiben.
+
+    Ein Klient, der mitten in der Behandlung die Sprache wechselt, soll nicht
+    ein Jahr lang mit einem gemittelten Urteil analysiert werden. Eine Vorgabe
+    von aussen oder aus dem Dateinamen bleibt unangetastet: die hat jemand
+    absichtlich gesetzt.
+    """
+    if manuell or befund.sprache_quelle in ("manuell", "dateiname"):
+        return
+    abweichend = 0
+    for s in sitzungen:
+        text = " ".join(t.text for t in s.turns)
+        code, sicherheit, _ = sprachen.erkenne(text)
+        # erkenne() verweigert unter 25 Wörtern und gibt dann Sicherheit 0
+        # zurück — dann bleibt es beim Urteil über die ganze Datei.
+        if sicherheit > 0:
+            s.sprache = code
+            if code != befund.sprache:
+                abweichend += 1
+    if abweichend:
+        befund.warnungen.append(
+            f"{abweichend} of {len(sitzungen)} sections were detected as the "
+            "other language and are analysed with that language’s word lists. "
+            "Levels do not compare across the language line.")
+
+
+# ---------------------------------------------------------------------------
+# Aufteilen
+# ---------------------------------------------------------------------------
+
+def _abschnitte_aus_marken(marken: list[dict], n_turns: int) -> list[dict]:
+    """Waehlt die brauchbaren Marken aus und macht Abschnittsgrenzen daraus.
+
+    Starke Marken schlagen schwache: wer "Sitzung 7" schreibt, meint es, wer
+    eine Linie zieht, vielleicht auch nur Zierde. Schwache Marken kommen nur
+    zum Zug, wenn keine starke da ist.
+    """
+    for art in ("stark", "schwach"):
+        kandidaten = [m for m in marken if m["art"] == art and 0 <= m["turn"] <= n_turns]
+        if len(kandidaten) < 2:
+            continue
+
+        # Grenzen sind die Turn-Indizes der Marken; eine Marke bei 0 ist der
+        # Kopf des ersten Abschnitts, keine Trennung.
+        grenzen: list[dict] = []
+        for m in kandidaten:
+            if grenzen and m["turn"] == grenzen[-1]["turn"]:
+                continue        # zwei Marken hintereinander, etwa Linie + Datum
+            grenzen.append(m)
+
+        abschnitte = []
+        for i, m in enumerate(grenzen):
+            start = m["turn"]
+            ende = grenzen[i + 1]["turn"] if i + 1 < len(grenzen) else n_turns
+            abschnitte.append({"start": start, "ende": ende,
+                               "nummer": m["nummer"], "datum": m["datum"]})
+        if abschnitte and abschnitte[0]["start"] > 0:
+            # Text vor der ersten Marke gehoert zum ersten Abschnitt.
+            abschnitte[0]["start"] = 0
+
+        # Streuner anhaengen statt als Sitzung zaehlen.
+        verdichtet: list[dict] = []
+        for a in abschnitte:
+            if verdichtet and (a["ende"] - a["start"]) < MIN_TURNS_JE_ABSCHNITT:
+                verdichtet[-1]["ende"] = a["ende"]
+            else:
+                verdichtet.append(a)
+        if len(verdichtet) >= 2:
+            return verdichtet
+    return []
+
+
+def segmentiere(sitzung: "Sitzung", anzahl: int | None = None) -> list["Sitzung"]:
+    """Schneidet eine Sitzung in gleich grosse Stuecke.
+
+    Die Rueckfallebene fuer einen langen Text ohne jede Sitzungsmarke. Die
+    Stuecke heissen "Segment", nicht "Session", und der Befund sagt, dass hier
+    geschnitten und nicht gelesen wurde — ein Segmentwechsel ist eine Stelle im
+    Text, keine Stelle in der Behandlung.
+    """
+    turns = sitzung.turns
+    if anzahl is None:
+        anzahl = SEGMENT_ZIEL
+    anzahl = max(SEGMENT_MIN, min(SEGMENT_MAX, anzahl))
+    if len(turns) < anzahl * MIN_TURNS_JE_ABSCHNITT:
+        anzahl = len(turns) // MIN_TURNS_JE_ABSCHNITT
+    if anzahl < 2:
+        return [sitzung]
+
+    gross, rest = divmod(len(turns), anzahl)
+    stuecke: list[Sitzung] = []
+    pos = 0
+    for i in range(anzahl):
+        laenge = gross + (1 if i < rest else 0)
+        stuecke.append(_teilsitzung(sitzung, pos, pos + laenge, i, nummer=i + 1,
+                                    datum=None, ist_segment=True))
+        pos += laenge
+
+    if sitzung.befund is not None:
+        sitzung.befund.teilung = "segmente"
+        sitzung.befund.warnungen.append(
+            f"No session markers found in this text, so it was cut into {anzahl} "
+            "equal segments. The trend is a trend *within* the text, not between "
+            "sessions. Put a line like \u201c--- Session 7 \u2014 2024-03-14 ---\u201d "
+            "between your sessions and it will be read as written.")
+        sitzung.befund.sitzungen_info = [_sitzung_info(t) for t in stuecke]
+    return stuecke
+
+
+def _teilsitzung(quelle: "Sitzung", start: int, ende: int, idx: int,
+                 nummer: int | None, datum: str | None,
+                 ist_segment: bool) -> "Sitzung":
+    # Turn-Indizes werden je Sitzung neu vergeben, weil alles Spaetere
+    # (Belegstellen, KWIC, Faeden) sie als Adresse innerhalb der Sitzung liest.
+    turns = quelle.turns[start:ende]
+    for i, t in enumerate(turns):
+        t.idx = i
+    return Sitzung(
+        sid=f"{quelle.sid}#{idx + 1}",
+        dateiname=quelle.dateiname,
+        turns=turns,
+        nummer=nummer,
+        datum=datum or quelle.datum,
+        klient_id=quelle.klient_id,
+        format=quelle.format,
+        sprache=quelle.sprache,
+        befund=quelle.befund,
+        quelle_idx=idx,
+        ist_segment=ist_segment,
+    )
+
+
+def _sitzung_info(s: "Sitzung") -> dict:
+    return {
+        "nr": s.nummer,
+        "datum": s.datum,
+        "turns": len(s.turns),
+        "woerter": sum(len(t.text.split()) for t in s.turns),
+        "sprache": s.sprache,
+        "istSegment": s.ist_segment,
+    }
 
 
 def sortiere_sitzungen(sitzungen: list[Sitzung]) -> list[Sitzung]:
     """Chronologisch: Datum vor Nummer vor Dateiname. Nummern werden
     anschliessend lückenlos neu vergeben, damit die Arc-Achse stimmt."""
     def schluessel(s: Sitzung):
+        # ``quelle_idx`` hält aus einer Datei geschnittene Sitzungen in der
+        # Reihenfolge, in der sie im Text standen — auch wenn keine von ihnen
+        # ein Datum trägt und der Dateiname für alle derselbe ist.
         return (s.datum or "9999-99-99",
                 s.nummer if s.nummer is not None else 9999,
-                s.dateiname)
+                s.dateiname,
+                s.quelle_idx)
     geordnet = sorted(sitzungen, key=schluessel)
     for i, s in enumerate(geordnet, start=1):
         if s.nummer is None:
