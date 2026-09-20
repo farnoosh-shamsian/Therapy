@@ -122,7 +122,7 @@ therapy/
 ├── index.html                 GitHub Pages entry point
 ├── app/
 │   ├── main.js                Pyodide bootstrap, file handling, routing
-│   ├── views.js               session card / client arc / mirror / concordance
+│   ├── views.js               session / trends / keywords / concordance
 │   ├── charts.js              hand-rolled SVG — no chart library
 │   └── styles.css             German UI, light + dark
 ├── pysrc/therapy/
@@ -136,14 +136,13 @@ therapy/
 │   ├── threads.py             dropped-thread detection (§5.4)
 │   ├── people.py              sociogram (§5.5)
 │   ├── arc.py                 cross-session series + changepoints (§5.6)
-│   ├── mirror.py              therapist-side metrics (§5.7)
 │   ├── report.py              assembles the JSON the UI renders
 │   └── lexika/
 │       ├── marker.py          ✅ written
 │       ├── emotion.py         ✅ written
 │       ├── funktion.py        stopwords, pronouns, function words
-│       └── intervention.py    therapist utterance patterns
-├── samples/                   synthetic German transcripts (no real data, ever)
+│       └── dialogmuster.py     question types and backchannels
+├── samples/                   synthetic English transcripts (no real data, ever)
 ├── tests/                     hand-checked German sentences per marker
 ├── pyproject.toml             so the same package installs locally
 └── README.md                  for him, in German
@@ -194,9 +193,6 @@ These are the heart of it, and the reason a German tool beats a translated one.
 | **Question typing** | Open (W-question, invitation) vs closed (verb-first, tag). Everyone believes they ask open questions. | B |
 | **Lexical uptake** | Does the therapist use the client's own words back, or translate into his own vocabulary? Good therapy borrows. Content-word overlap, turn to turn. | B |
 | **Style matching (LSM)** | Function-word convergence across turns. Plotted within a session, dips mark candidate ruptures. | B |
-| **Latency and pace** | Only if timestamps exist: words per minute, pause before answering, response latency after an interpretation. Among the most telling signals available, and entirely dependent on format. | A* |
-
-\* high confidence *if* timestamps exist; otherwise absent, not approximated.
 
 ### 5.3 Corpus tools — the bridge back to close reading
 
@@ -208,8 +204,22 @@ instead of a person he listens to — which is the real clinical risk here.
   sessions, with session and turn reference.
 - **Collocations.** What clusters around *Mutter*, around *Arbeit*, around
   *Angst*. Log-likelihood, not raw frequency.
-- **Keyness.** What makes *this* client's language distinctive against the rest
-  of his caseload, rather than just what's frequent.
+- **Keyness, on three axes.** What makes language distinctive rather than
+  merely frequent. The reference used to be the rest of the caseload, which
+  left anyone with a single case looking at an empty list; two of the three
+  axes now compare a text with itself.
+  - *This session against the others* — what was talked about that day and not
+    otherwise. Clinically the most interesting of the three.
+  - *Late sessions against early ones* — the vocabulary of change.
+  - *This client against the rest of the caseload*, where there is one, and
+    only against clients seen in the same language.
+  Each entry carries G² **and** log ratio: the first says how confident the
+  difference is and grows with the amount of text, the second says how large it
+  is. One without the other is misleading over a year of transcript.
+- **A word across the sessions.** Any word, plotted as a rate per 1000 words
+  against the session axis, clickable into the session it came from.
+- **Vocabulary that moves.** Rising and fading by rank correlation against
+  session order; appearing and disappearing by first and last occurrence.
 - **Compound decomposition.** *Verlustangst*, *Schuldgefühle*, *Versagensangst*
   each appear once and vanish into the tail unless split. This is exactly where
   the emotionally loaded vocabulary hides.
@@ -246,35 +256,43 @@ detection on composite indices. The output the therapist actually wants is not
 twelve line charts but one sentence: *something shifted around session 9.* Then
 he goes and finds out why.
 
-### 5.7 The mirror
+### 5.7 The mirror — cut
 
-Across all clients, about him:
+*Removed.* The therapist-side view was built around comparisons across the
+caseload — *you interpret three times more with A than with B* — and the
+intervention classifier and idiolect detector existed only to serve it. All
+three need at least two clients, and the input this tool is actually used with
+is one long text: one case, no comparison, an empty panel.
 
-- Intervention profile — reflection / interpretation / question / validation /
-  psychoeducation / self-disclosure / structuring. Rule-based in v1. **Confidence C,
-  and labelled as such in the UI.**
-- The comparative view: *you interpret three times more with A than with B.*
-  That question is worth the whole tool.
-- His idiolect: his own most formulaic phrases across the entire caseload.
-  Is he saying the same eleven things to everyone? Humbling, useful.
-- Talk ratio and question profile by client.
+What is lost is real: the comparative question was the sharpest thing here, and
+it is gone with it. What survives is the therapist-side measurement that works
+within a single case — talk ratio, lexical uptake, style matching and question
+typing, in the session card and as the therapist series in Trends. The
+classifier and its two lexicons are in the git history if a multi-client view
+ever comes back.
 
 ---
 
-## 6. The three views
+## 6. The views
 
-**Session card** — one page per session. Affect arc, talk ratio, question
-profile, new vocabulary, candidate ruptures, dropped threads.
+**What was read** — what was found per file, how the text was split into
+sessions, and which figures are unavailable as a result. First on purpose.
 
-**Client arc** — the year at once. Every marker as a trajectory, changepoints
+**Session** — one page per session. Affect arc, talk ratio, question profile,
+new vocabulary, candidate ruptures, dropped threads.
+
+**Trends** — the year at once. Every marker as a trajectory, changepoints
 marked, the sociogram, metaphors as they appear and mutate.
 
-**Mirror** — across the caseload, about him.
+**Keywords** — which words carry the case: the three keyness axes, a word
+plotted across the sessions, vocabulary that rises and fades, compounds split
+open.
 
-Plus **Concordance**, reachable from any number anywhere.
+Plus **Concordance**, reachable from any number anywhere. Keywords answers
+*which words*; the concordance shows *the lines*.
 
-UI language: German. Every panel carries a plain-German note on what the number
-can and cannot bear.
+UI language: English. Every panel carries a plain note on what the number can
+and cannot bear.
 
 ---
 
@@ -297,13 +315,13 @@ can and cannot bear.
 
 ### Phase 2 — Analysis core
 - [ ] `markers.py`, `dialogue.py`, `lexical.py`
-- [ ] `threads.py`, `people.py`, `arc.py`, `mirror.py`
+- [ ] `threads.py`, `people.py`, `arc.py`
 - [ ] `report.py` → single JSON contract for the UI
 
 ### Phase 3 — Browser
 - [ ] Pyodide bootstrap with a real loading state (first load is slow; say so)
-- [ ] File drop, multi-file session ordering
-- [ ] Session card, client arc, mirror, concordance
+- [ ] Paste box and file drop; session splitting and ordering
+- [ ] Session, trends, keywords, concordance
 - [ ] Hand-rolled SVG charts
 - [ ] Offline demonstration path using `samples/`
 
@@ -314,9 +332,9 @@ can and cannot bear.
 - [ ] Vendor Pyodide into the repo so the page makes zero network calls
 
 **Minimum giftable version:** Phase 0 + 1 + the German markers + concordance +
-client arc + dropped threads. The mirror and intervention classification are
-the natural v2 — the classifier wants labelled German therapy utterances, and
-that is real work that shouldn't be faked.
+trends + dropped threads. A therapist-side view across several clients is the
+natural v2 — the intervention classifier it would need wants labelled German
+therapy utterances, and that is real work that shouldn't be faked (see §5.7).
 
 ---
 
