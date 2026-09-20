@@ -183,19 +183,36 @@ class Korpus:
         self._analysiert = False
         return {"ersetzteTurns": geaendert, **self.pseudo.zusammenfassung()}
 
+    def _betroffene(self, sid: str) -> list[Sitzung]:
+        """Die Sitzungen zu einer Kennung — Teilsitzungen eingeschlossen.
+
+        Der Befund steht je *Datei*, die Sitzungen stehen je Abschnitt: ein
+        Text mit Sitzungsmarken zerfällt in ``datei.txt#1``, ``#2`` … Ein Knopf
+        in der Befundzeile meint darum die ganze Datei und nicht nur den
+        Abschnitt, dessen Kennung zufällig der Dateiname ist — sonst griffe er
+        genau dann ins Leere, wenn jemand ein Jahr am Stück einfügt, also im
+        Normalfall dieses Werkzeugs.
+        """
+        return [s for s in self.sitzungen
+                if s.sid == sid or s.sid.startswith(f"{sid}#")]
+
     def sprecher_tauschen(self, sid: str) -> None:
-        """Dreht T und K in einer Sitzung um — für den geratenen Fall."""
-        for sitzung in self.sitzungen:
-            if sitzung.sid != sid:
-                continue
+        """Dreht T und K um — für den geratenen und den falsch gelabelten Fall."""
+        befunde = []
+        for sitzung in self._betroffene(sid):
             for turn in sitzung.turns:
                 if turn.sprecher == THERAPEUT:
                     turn.sprecher = KLIENT
                 elif turn.sprecher == KLIENT:
                     turn.sprecher = THERAPEUT
-            if sitzung.befund:
-                sitzung.befund.sprecher_quelle = "manuell"
-                sitzung.befund.warnungen.append("Speakers were swapped by hand.")
+            if sitzung.befund is not None and sitzung.befund not in befunde:
+                befunde.append(sitzung.befund)
+        # Die Abschnitte einer Datei teilen sich *einen* Befund. Ohne diese
+        # Sammlung stünde die Notiz unten so oft da, wie der Text Abschnitte
+        # hat.
+        for befund in befunde:
+            befund.sprecher_quelle = "manuell"
+            befund.warnungen.append("Speakers were swapped by hand.")
         self._analysiert = False
 
     def sprache_setzen(self, sid: str, code: str) -> None:
@@ -207,15 +224,16 @@ class Korpus:
         """
         if code not in sprachen.CODES:
             return
-        for sitzung in self.sitzungen:
-            if sitzung.sid != sid:
-                continue
+        befunde = []
+        for sitzung in self._betroffene(sid):
             sitzung.sprache = code
-            if sitzung.befund:
-                sitzung.befund.sprache = code
-                sitzung.befund.sprache_quelle = "manuell"
-                sitzung.befund.warnungen.append(
-                    f"Language was set to {sprachen.name(code)} by hand.")
+            if sitzung.befund is not None and sitzung.befund not in befunde:
+                befunde.append(sitzung.befund)
+        for befund in befunde:
+            befund.sprache = code
+            befund.sprache_quelle = "manuell"
+            befund.warnungen.append(
+                f"Language was set to {sprachen.name(code)} by hand.")
         self._analysiert = False
 
     # -- Gruppierung -----------------------------------------------------

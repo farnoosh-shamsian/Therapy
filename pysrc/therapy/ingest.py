@@ -7,7 +7,12 @@ Einlesevorgang einen :class:`Befund` zurück, der sagt, was gefunden wurde, was
 geraten wurde und welche Kennzahlen deshalb *nicht* zur Verfügung stehen.
 
 Unterstützte Formate: ``.txt`` ``.vtt`` ``.srt`` ``.json`` (Whisper) ``.csv``
-``.tsv`` ``.docx`` ``.md``.
+``.tsv`` ``.docx`` ``.html`` ``.md``.
+
+``.docx`` und ``.html`` sind die Formate, in denen die verbreiteten
+Dokumentations-Assistenten (VIA u.a.) ein Transkript herausgeben. Sie setzen
+den Sprecher gern auf eine *eigene* Zeile statt vor einen Doppelpunkt —
+deshalb kennt der Textparser beide Schreibweisen.
 
 Seit das Werkzeug zweisprachig ist, gehört die **Sprache** zu genau diesen
 geratenen Dingen. Sie wird pro Sitzung erkannt, steht im Befund, und wenn die
@@ -183,11 +188,60 @@ _LABEL_ZEILE = re.compile(
     re.VERBOSE,
 )
 
+# Sprecher auf einer *eigenen* Zeile, Text darunter:
+#
+#     Therapeut
+#     Wie war die Woche?
+#
+# So setzen Word- und HTML-Exporte den Sprecherwechsel — der Name steht fett
+# in einem eigenen Absatz, ohne Doppelpunkt. Bis hierher fiel diese Zeile
+# durch und wurde als gesprochener Satz gezählt.
+_NUR_LABEL_ZEILE = re.compile(
+    r"""^\s*
+        (?:[\[\(]?\s*(?P<zeit>\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?)\s*[\]\)]?\s*)?
+        (?P<label>[A-Za-zÄÖÜäöüß][\wÄÖÜäöüß .\-]{0,28}?)
+        \s*:?\s*$
+    """,
+    re.VERBOSE,
+)
+
 _ZEIT_VTT = re.compile(
     r"(\d{1,2}:)?(\d{1,2}):(\d{2})[.,](\d{1,3})\s*-->\s*(\d{1,2}:)?(\d{1,2}):(\d{2})[.,](\d{1,3})"
 )
 _VTT_STIMME = re.compile(r"<v\s+([^>]+?)\s*>(.*?)(?:</v>)?$", re.S)
 _TAGS = re.compile(r"<[^>]+>")
+
+# HTML-Export: Skript und Stil fliegen ganz raus, Blockenden werden zu
+# Zeilenumbrüchen. Mehr braucht es nicht — was danach übrig bleibt, ist Text
+# mit Sprecherzeilen, und dafür gibt es schon einen Parser.
+_HTML_WEG = re.compile(r"<(script|style)\b.*?</\s*\1\s*>", re.I | re.S)
+_HTML_BLOCK = re.compile(
+    r"</\s*(?:p|div|li|tr|h[1-6]|blockquote|section|article|td|th)\s*>"
+    r"|<\s*br\s*/?\s*>",
+    re.I,
+)
+
+_ENTITAETEN = {
+    "&nbsp;": " ", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'",
+    "&ndash;": "–", "&mdash;": "—", "&hellip;": "…", "&shy;": "",
+    "&auml;": "ä", "&ouml;": "ö", "&uuml;": "ü", "&szlig;": "ß",
+    "&Auml;": "Ä", "&Ouml;": "Ö", "&Uuml;": "Ü",
+}
+
+
+def _entitaeten(text: str) -> str:
+    """Löst HTML-Entitäten auf — ``&amp;`` als Letztes.
+
+    Die Reihenfolge ist keine Kosmetik: wer ``&amp;`` zuerst ersetzt, macht
+    aus dem geschriebenen ``&amp;lt;`` ein ``<`` und erfindet damit ein Tag,
+    das im Transkript nie stand.
+    """
+    for roh, zeichen in _ENTITAETEN.items():
+        text = text.replace(roh, zeichen)
+    text = re.sub(r"&#(\d{1,6});",
+                  lambda m: chr(int(m.group(1))) if int(m.group(1)) < 0x110000 else "",
+                  text)
+    return text.replace("&amp;", "&")
 
 
 def _zeit_zu_sekunden(text: str) -> float | None:
@@ -222,6 +276,11 @@ def erkenne_format(dateiname: str, inhalt: str | bytes) -> str:
 
     if name.endswith(".docx") or kopf.startswith("PK"):
         return "docx"
+    # Bewusst eng: nur die Wurzel-Tags eines echten Dokuments. Ein Transkript,
+    # in dem einmal "<p>" als gesprochenes Zeichen vorkommt, ist kein HTML.
+    if (name.endswith((".html", ".htm"))
+            or re.search(r"<\s*(?:!doctype\s+html|html|head|body)\b", kopf, re.I)):
+        return "html"
     if kopf.upper().startswith("WEBVTT") or name.endswith(".vtt"):
         return "vtt"
     if name.endswith(".srt") or re.match(r"^\d+\s*\n\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->", kopf):
@@ -272,6 +331,23 @@ def _parse_txt(text: str, befund: Befund) -> list[Turn]:
                 sprecher=UNBEKANNT,
                 text=m.group("text").strip(),
                 start_sek=_zeit_zu_sekunden(m.group("zeit") or ""),
+                roh_label=label,
+            )
+            turns.append(aktuell)
+            continue
+
+        # Sprecher allein auf der Zeile, Text folgt darunter. Der Turn wird
+        # leer angelegt und von den nächsten Zeilen gefüllt; bleibt er leer,
+        # wirft ``lies`` ihn ohnehin weg.
+        nur = _reines_label(zeile)
+        if nur is not None:
+            label, zeit = nur
+            labels[label] = labels.get(label, 0) + 1
+            aktuell = Turn(
+                idx=len(turns),
+                sprecher=UNBEKANNT,
+                text="",
+                start_sek=_zeit_zu_sekunden(zeit),
                 roh_label=label,
             )
             turns.append(aktuell)
@@ -383,6 +459,37 @@ def _plausibles_label(label: str) -> bool:
         return True
     # Ein einzelnes grossgeschriebenes Wort oder "Vorname N." gilt als Name.
     return bool(re.match(r"^[A-ZÄÖÜ][\wÄÖÜäöüß.\-]*(\s+[A-ZÄÖÜ][\wÄÖÜäöüß.\-]*)?$", label))
+
+
+def _reines_label(zeile: str) -> tuple[str, str] | None:
+    """Eine Zeile, die aus nichts als einem Sprechernamen besteht.
+
+    Deutlich strenger als :func:`_plausibles_label`, und zwar aus einem
+    handfesten Grund: dort bürgt der Doppelpunkt dafür, dass jemand einen
+    Sprecher gemeint hat. Hier bürgt nichts. Ein kurzer Satz auf einer eigenen
+    Zeile — "Ja." — sähe sonst aus wie ein Sprecher und würde die Redeanteile
+    still verfälschen.
+
+    Deshalb zählt hier nur, was aus sich heraus ein Sprecher ist: eine
+    benannte Rolle (``Therapeut``, ``Patientin``, ``Client``) oder ein
+    Diarisierungs-Name (``Sprecher 1``, ``SPEAKER_00``). Ein blosser Eigenname
+    reicht nicht.
+    """
+    m = _NUR_LABEL_ZEILE.match(zeile)
+    if not m:
+        return None
+    label = m.group("label").strip()
+    kern = label.rstrip(".").strip()
+    # Einzelbuchstaben nicht: "T" und "K" sind gültige Sprecherkürzel, aber
+    # ohne Doppelpunkt stehen sie in einem eingefügten Text mit grösserer
+    # Wahrscheinlichkeit für irgendetwas anderes. Blocklayout schreibt die
+    # Rolle ohnehin aus.
+    if len(kern) < 2:
+        return None
+    if (_THERAPEUT_MUSTER.match(kern) or _KLIENT_MUSTER.match(kern)
+            or _ANONYM_MUSTER.match(kern)):
+        return label, m.group("zeit") or ""
+    return None
 
 
 def _parse_vtt(text: str, befund: Befund) -> list[Turn]:
@@ -529,9 +636,20 @@ def _parse_docx(rohdaten: bytes, befund: Befund) -> list[Turn]:
     xml = re.sub(r"<w:br[^>]*/>", "\n", xml)
     xml = re.sub(r"<w:tab[^>]*/>", "\t", xml)
     text = _TAGS.sub("", xml)
-    text = (text.replace("&amp;", "&").replace("&lt;", "<")
-                .replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'"))
-    return _parse_txt(text, befund)
+    return _parse_txt(_entitaeten(text), befund)
+
+
+def _parse_html(text: str, befund: Befund) -> list[Turn]:
+    """HTML-Export: Blockenden werden zu Zeilenumbrüchen, dann wie Text.
+
+    Der Grund, dass es das gibt: die Dokumentations-Assistenten geben ein
+    Transkript als Word *oder* HTML heraus. Ohne diesen Weg fiel eine
+    HTML-Datei in den Textparser, und jedes ``<p>`` stand als gesprochenes
+    Wort in der Auswertung.
+    """
+    text = _HTML_WEG.sub(" ", text)
+    text = _HTML_BLOCK.sub("\n", text)
+    return _parse_txt(_entitaeten(_TAGS.sub("", text)), befund)
 
 
 def _fasse_gleiche_sprecher_zusammen(turns: list[Turn]) -> list[Turn]:
@@ -812,7 +930,7 @@ def lies(
         try:
             turns = {
                 "vtt": _parse_vtt, "srt": _parse_srt, "json": _parse_json,
-                "csv": _parse_csv, "txt": _parse_txt,
+                "csv": _parse_csv, "html": _parse_html, "txt": _parse_txt,
             }[fmt](text, befund)
         except Exception as fehler:                      # noqa: BLE001
             befund.warnungen.append(

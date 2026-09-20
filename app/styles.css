@@ -360,6 +360,17 @@ button:focus-visible, select:focus-visible, input:focus-visible,
   display: block; font-size: 11px; color: var(--text-leise); margin-top: 2px;
 }
 
+/* Der Sprechertausch, endlich sichtbar. Klein und grau: er ist eine Korrektur,
+   die man selten braucht, und soll die Zeile nicht anführen — aber er muss da
+   sein, weil der Befund daneben zum Prüfen auffordert. */
+.sprecher-tausch {
+  display: block; margin-top: 2px; font: inherit; font-size: 11px;
+  padding: 0 5px; cursor: pointer;
+  border: 1px solid var(--rand-stark); border-radius: 4px;
+  background: var(--papier); color: var(--text-leise);
+}
+.sprecher-tausch:hover { color: var(--text); border-color: var(--text-leise); }
+
 /* Eine Sprachgrenze ist keine Warnung — die Zahl ist nicht falsch, sie trägt
    nur weniger. Deshalb dieselbe zurückhaltende Farbe wie bei den übrigen
    Einordnungen und nicht das Warngelb. */

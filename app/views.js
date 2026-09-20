@@ -131,6 +131,19 @@ export function befundAnsicht(befunde, sprachhinweisText, klienten = []) {
     </select>
     <span class="sprach-quelle">${esc(sprachQuelle[b.spracheQuelle] ?? b.spracheQuelle)}</span>`;
 
+  // The swap the ingest report has been promising. When roles are guessed the
+  // warning says "swap them if that is wrong" — until now there was nothing to
+  // swap them with, which is worse than not offering it. Shown whenever there
+  // are roles at all: labels can be confidently read and still be the wrong way
+  // round, because an exporter that writes "Speaker 1" does not know who is who.
+  const sprecherZelle = (b) => {
+    const text = esc(quelle[b.sprecherQuelle] ?? b.sprecherQuelle);
+    if (b.sprecherQuelle === 'keine') return text;
+    return `${text}
+      <button type="button" class="sprecher-tausch" data-sid="${esc(b.dateiname)}"
+              title="Swap therapist and client throughout this file">swap</button>`;
+  };
+
   const zeilen = befunde.map((b) => `
     <tr class="${b.warnungen.length ? 'warn' : ''}">
       <td class="mono">${esc(b.dateiname)}</td>
@@ -139,7 +152,7 @@ export function befundAnsicht(befunde, sprachhinweisText, klienten = []) {
       <td class="num">${esc(b.turns)}</td>
       <td class="num">${esc(b.woerter)}</td>
       <td>${b.labels.length ? b.labels.map((l) => `<span class="tag">${esc(l)}</span>`).join(' ') : '<em>none</em>'}</td>
-      <td>${esc(quelle[b.sprecherQuelle] ?? b.sprecherQuelle)}</td>
+      <td>${sprecherZelle(b)}</td>
       <td>${b.zeitstempel ? 'yes' : 'no'}</td>
     </tr>
     ${teilungsZeile(b, SPALTEN)}

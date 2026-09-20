@@ -355,6 +355,23 @@ async function setzeSprache(sid, code) {
   zeichne();
 }
 
+/* Who is the therapist is the one judgement the whole "see yourself" half rests
+ * on. Get it backwards and every number is still correct and still about the
+ * wrong person — which is why this sits in the ingest report next to the
+ * guess, and not in a settings dialogue somewhere behind the curves. */
+async function tauscheSprecher(sid) {
+  py('sprecher_tauschen', sid);
+  App.befunde = py('befunde');
+  if (App.bericht) {
+    status('Re-analysing with the speakers swapped …');
+    await atemzug();
+    App.bericht = py('bericht');
+    statusFertig();
+    bauKlientenwahl();
+  }
+  zeichne();
+}
+
 function konkordanzAnsicht() {
   // The placeholder follows the client on screen: whoever is looking at an
   // English case is about to type an English word, and a German example there
@@ -534,6 +551,11 @@ function verdrahte() {
     } else if (ev.target.matches?.('.fallname-feld')) {
       benenneKlient(ev.target.dataset.klient, ev.target.value);
     }
+  });
+
+  document.addEventListener('click', (ev) => {
+    const tausch = ev.target.closest?.('.sprecher-tausch');
+    if (tausch) tauscheSprecher(tausch.dataset.sid);
   });
 
   $('#schublade-zu').addEventListener('click', schliesseSchublade);

@@ -192,7 +192,7 @@ def test_gesamtlauf_ueber_die_beispiele(tmp_path):
     from pathlib import Path
     proben = Path(__file__).resolve().parents[1] / "samples"
     dateien = [{"name": p.name, "inhalt": p.read_text(encoding="utf-8")}
-               for p in sorted(proben.glob("klient-*"))]
+               for p in sorted(proben.glob("client-*"))]
     assert dateien, "die synthetischen Beispiele fehlen — samples/_generator.py ausführen"
 
     k = Korpus()
@@ -200,21 +200,21 @@ def test_gesamtlauf_ueber_die_beispiele(tmp_path):
     k.pseudonymisiere()
     bericht = k.bericht()
 
-    assert {kl["id"] for kl in bericht["klienten"]} == {"anna", "bernd"}
-    anna = next(kl for kl in bericht["klienten"] if kl["id"] == "anna")
-    assert len(anna["sitzungen"]) == 12
-    assert anna["genugSitzungen"] is True
-    assert anna["faeden"], "in den Beispielen sind Fäden absichtlich eingebaut"
-    assert anna["arc"]["wechselpunkte"], "der eingebaute Sprung muss gefunden werden"
+    assert {kl["id"] for kl in bericht["klienten"]} == {"claire"}
+    claire = next(kl for kl in bericht["klienten"] if kl["id"] == "claire")
+    assert len(claire["sitzungen"]) == 12
+    assert claire["genugSitzungen"] is True
+    assert claire["faeden"], "in den Beispielen sind Fäden absichtlich eingebaut"
+    assert claire["arc"]["wechselpunkte"], "der eingebaute Sprung muss gefunden werden"
 
     # Der eingebaute Verlauf: Distanzierung runter, Granularität hoch.
-    assert arc.rangkorrelation(anna["arc"]["serien"]["man_quote"]) < -0.5
-    assert arc.rangkorrelation(anna["arc"]["serien"]["granularitaet"]) > 0.5
+    assert arc.rangkorrelation(claire["arc"]["serien"]["generisch_quote"]) < -0.5
+    assert arc.rangkorrelation(claire["arc"]["serien"]["granularitaet"]) > 0.5
 
     # Jede Zahl muss zurückführen: Marker-Treffer tragen Adressen.
-    treffer = anna["sitzungen"][0]["marker"]["K"]["treffer"]
-    turn, start, ende, form = treffer["man"][0]
-    ausschnitt = k.ausschnitt("anna", anna["sitzungen"][0]["sid"], turn, start, ende)
+    treffer = claire["sitzungen"][0]["marker"]["K"]["treffer"]
+    turn, start, ende, form = treffer["generisch"][0]
+    ausschnitt = k.ausschnitt("claire", claire["sitzungen"][0]["sid"], turn, start, ende)
     assert ausschnitt["treffer"].lower() == form
 
 
@@ -222,7 +222,7 @@ def test_export_enthaelt_keinen_transkripttext():
     from pathlib import Path
     proben = Path(__file__).resolve().parents[1] / "samples"
     dateien = [{"name": p.name, "inhalt": p.read_text(encoding="utf-8")}
-               for p in sorted(proben.glob("klient-anna*"))]
+               for p in sorted(proben.glob("client-claire*"))]
     k = Korpus()
     k.lade(dateien)
     k.pseudonymisiere()
@@ -239,7 +239,7 @@ def test_alle_zahlen_im_bericht_sind_endlich():
     from pathlib import Path
     proben = Path(__file__).resolve().parents[1] / "samples"
     dateien = [{"name": p.name, "inhalt": p.read_text(encoding="utf-8")}
-               for p in sorted(proben.glob("klient-*"))]
+               for p in sorted(proben.glob("client-*"))]
     k = Korpus()
     k.lade(dateien)
     k.pseudonymisiere()

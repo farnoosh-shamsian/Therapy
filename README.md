@@ -95,7 +95,8 @@ trend you are looking at runs *within* the text rather than between sessions.
 **Or drop files** — that still works exactly as before, one file per session,
 all formats:
 
-`.txt` · `.md` · `.vtt` · `.srt` · `.json` (Whisper) · `.csv` · `.tsv` · `.docx`
+`.txt` · `.md` · `.vtt` · `.srt` · `.json` (Whisper) · `.csv` · `.tsv` ·
+`.docx` · `.html`
 
 Anything that marks who is speaking works best:
 
@@ -111,9 +112,44 @@ Therapist: How was the week?
 Client: Hard. I kept thinking about it.
 ```
 
+The speaker may also stand on a line of its own, which is how a Word or HTML
+export usually sets it:
+
+```
+Therapeut
+Wie war die Woche?
+
+Patientin
+Schwierig. Ich habe viel nachgedacht.
+```
+
 Recognised labels include `Therapeut:`, `Therapist:`, `T:`, `Klientin:`,
 `Client:`, `Pat:`, `Sprecher 1:`, `SPEAKER_00`, timestamps in brackets, and the
 usual subtitle formats.
+
+### If your transcript comes out of a documentation assistant
+
+The AI assistants that record and transcribe sessions — VIA and its like —
+export Word, PDF and HTML. Word and HTML drop straight onto this page; for PDF,
+copy the text and paste it into the box. Three things are worth knowing before
+you rely on it:
+
+**Export the transcript, not the notes.** The generated session notes are a
+summary in the assistant's own words. They have no turns and no speakers, so
+everything on the dialogue side — talk ratio, turn lengths, question types,
+uptake, style matching, dropped threads — goes dark. The ingest report says so
+plainly, but it is a wasted export either way.
+
+**Check who is who.** An exporter that writes `Sprecher 1` and `Sprecher 2` has
+separated the voices without knowing which is which. Thera.py then guesses by a
+rule it names — whoever talks less is the therapist — and says so in the ingest
+report. That rule is wrong for any hour you spent explaining something. There is
+a *swap* button next to the guess; it costs one click and it is the single
+judgement everything about *you* rests on.
+
+**Save the transcript the same day.** These assistants delete session data
+within the day, by design — that is the point of them. Nothing is archived on
+your behalf, so a year only exists if you exported each hour as it happened.
 
 **Filenames help.** Put the session number, the date and the client in the
 name and Thera.py sorts and groups everything by itself:
@@ -386,19 +422,18 @@ allowed to compare.
 
 ### Sample data
 
-`samples/` holds 32 synthetic transcripts of three invented cases — two German,
-one English — generated from sentence banks (`python samples/_generator.py`).
-They deliberately contain a trajectory with a step around session 9, so you can
-see that the Trends view and the changepoint detection do what they claim, and the
-English case is there so that the bilingual behaviour is shown rather than
-asserted: the language column in *What was read*, and the empty keyness list
-that comes of having only one English client
-to compare against.
+`samples/` holds 12 synthetic transcripts of one invented English case,
+generated from sentence banks (`python samples/_generator.py`). They
+deliberately contain a trajectory with a step around session 9, so you can see
+that the Trends view and the changepoint detection do what they claim.
 
-The English sentence bank is **not a translation** of the German one. It carries
-the same movement across the sessions with the means English has for it, which
-is the whole point — a translated bank would produce English sentences with
-German statistics.
+One case is the deliberate minimum: it is enough to show a session card, a
+trajectory and the dropped threads. What a single case cannot show is not
+faked — with nothing to be distinctive *against*, Keywords says so and falls
+back to comparing the text with itself, one session against the others and the
+late sessions against the early ones. Language detection still runs on the
+text rather than on the filename, so the language column in *What was read* is
+doing real work even here.
 
 **No real client material is ever committed to that folder.** Not
 de-identified, not redacted, not in a branch.

@@ -55,7 +55,23 @@ def lade(dateien_json: str, klient: str | None = None,
 
 
 def befunde() -> str:
-    return _json([s.befund.als_dict() for s in korpus.sitzungen if s.befund])
+    """Ein Eintrag je *Datei* — wie bei :func:`lade`, und aus gutem Grund.
+
+    Die Abschnitte einer geteilten Datei teilen sich einen Befund. Wer hier je
+    Sitzung zählt, schreibt die Befundzeile so oft in die Tabelle, wie der Text
+    Sitzungen hat, und jede Warnung darin gleich mit — ein eingefügtes Jahr
+    erschiene zwölfmal. ``lade`` gibt einen Eintrag je Datei zurück; dass diese
+    Funktion danach etwas anderes liefert, wäre für die Oberfläche ein Sprung
+    mitten im Betrieb.
+    """
+    gesehen: list[int] = []
+    raus: list[dict] = []
+    for sitzung in korpus.sitzungen:
+        if sitzung.befund is None or id(sitzung.befund) in gesehen:
+            continue
+        gesehen.append(id(sitzung.befund))
+        raus.append(sitzung.befund.als_dict())
+    return _json(raus)
 
 
 def namensvorschlaege() -> str:

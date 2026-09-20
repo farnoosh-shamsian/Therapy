@@ -1,12 +1,15 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Thera.py — reading a year of transcripts at once</title>
-<meta name="description" content="Distant reading for German and English psychotherapy transcripts. Runs entirely in the browser; nothing is uploaded.">
-<meta name="robots" content="noindex, nofollow">
-<!--
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thera.py — reading a year of transcripts at once</title>
+    <meta
+      name="description"
+      content="Distant reading for German and English psychotherapy transcripts. Runs entirely in the browser; nothing is uploaded."
+    />
+    <meta name="robots" content="noindex, nofollow" />
+    <!--
   Content-Security-Policy as a second line of defence behind the architecture.
   connect-src 'self' permits loading our own files and the Pyodide runtime but
   forbids a connection to any other destination. An accidental fetch() to a
@@ -17,7 +20,9 @@
   vendor/pyodide/ (see the README) and both jsdelivr entries can be deleted;
   the page then makes literally zero foreign requests.
 -->
-<meta http-equiv="Content-Security-Policy" content="
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
   default-src 'self';
   script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net;
   connect-src 'self' https://cdn.jsdelivr.net;
@@ -26,221 +31,278 @@
   form-action 'none';
   base-uri 'none';
   object-src 'none';
-">
-<link rel="stylesheet" href="app/styles.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>◠</text></svg>">
-</head>
-<body>
+"
+    />
+    <link rel="stylesheet" href="app/styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>◠</text></svg>"
+    />
+  </head>
+  <body>
+    <header class="seitenkopf">
+      <h1>Thera.py</h1>
+      <span class="motto">Distant Reading as Present.</span>
+      <span class="rechts"><span id="version"></span></span>
+    </header>
 
-<header class="seitenkopf">
-  <h1>Thera.py</h1>
-  <span class="motto">Present in every hour. Legible only across the year.</span>
-  <span class="rechts"><span id="version"></span></span>
-</header>
+    <div id="ladezustand" hidden>
+      <span id="lade-text">Loading …</span>
+      <progress id="lade-balken"></progress>
+    </div>
 
-<div id="ladezustand" hidden>
-  <span id="lade-text">Loading …</span>
-  <progress id="lade-balken"></progress>
-</div>
+    <nav id="kopfleiste" hidden>
+      <button class="nav-knopf" data-ansicht="befund" aria-current="false">
+        What was read
+      </button>
+      <button class="nav-knopf" data-ansicht="sitzung" aria-current="true">
+        Session
+      </button>
+      <button class="nav-knopf" data-ansicht="bogen" aria-current="false">
+        Trends
+      </button>
+      <button class="nav-knopf" data-ansicht="woerter" aria-current="false">
+        Keywords
+      </button>
+      <button class="nav-knopf" data-ansicht="konkordanz" aria-current="false">
+        Concordance
+      </button>
+      <select id="klientenwahl" aria-label="Client"></select>
+      <select id="sitzungswahl" aria-label="Session"></select>
+      <span class="trenner"></span>
+      <button
+        id="export"
+        title="Write the figures to a local JSON file. No real names, no transcript text."
+      >
+        Export
+      </button>
+      <button id="neu">Discard</button>
+    </nav>
 
-<nav id="kopfleiste" hidden>
-  <button class="nav-knopf" data-ansicht="befund" aria-current="false">What was read</button>
-  <button class="nav-knopf" data-ansicht="sitzung" aria-current="true">Session</button>
-  <button class="nav-knopf" data-ansicht="bogen" aria-current="false">Trends</button>
-  <button class="nav-knopf" data-ansicht="woerter" aria-current="false">Keywords</button>
-  <button class="nav-knopf" data-ansicht="konkordanz" aria-current="false">Concordance</button>
-  <select id="klientenwahl" aria-label="Client"></select>
-  <select id="sitzungswahl" aria-label="Session"></select>
-  <span class="trenner"></span>
-  <button id="export" title="Write the figures to a local JSON file. No real names, no transcript text.">Export</button>
-  <button id="neu">Discard</button>
-</nav>
+    <main id="leer-zustand">
+      <section class="einleitung">
+        <h2>Read a year of transcripts at once.</h2>
+        <p>
+          After twelve months you remember session 1, session 9 — the big one —
+          and last week. Everything in between has collapsed into an impression.
+          Thera.py restores the middle: it counts the things in a transcript
+          that are too small to hear one at a time, plots them across the whole
+          course, and makes every number clickable back to the lines that
+          produced it.
+        </p>
+        <p>
+          It runs entirely inside your browser. Nothing is uploaded, and you can
+          check that yourself in thirty seconds — see below.
+        </p>
+      </section>
 
-<main id="leer-zustand">
-  <section class="einleitung">
-    <h2>Read a year of transcripts at once.</h2>
-    <p>
-      After twelve months you remember session 1, session 9 — the big one — and
-      last week. Everything in between has collapsed into an impression.
-      Thera.py restores the middle: it counts the things in a transcript that
-      are too small to hear one at a time, plots them across the whole course,
-      and makes every number clickable back to the lines that produced it.
-    </p>
-    <p>
-      It runs entirely inside your browser. Nothing is uploaded, and you can
-      check that yourself in thirty seconds — see below.
-    </p>
-  </section>
+      <div id="ablage">
+        <h2>Paste a year of sessions, or drop the files</h2>
+        <p>German or English, mixed freely; the interface is in English.</p>
 
-  <div id="ablage">
-    <h2>Paste a year of sessions, or drop the files</h2>
-    <p>German or English, mixed freely; the interface is in English.</p>
-
-    <textarea id="einfuegen" rows="8" spellcheck="false"
-      aria-label="Paste your transcript here"
-      placeholder="Paste everything here — one session after another, in order.
+        <textarea
+          id="einfuegen"
+          rows="8"
+          spellcheck="false"
+          aria-label="Paste your transcript here"
+          placeholder="Paste everything here — one session after another, in order.
 
 --- Session 1 — 2024-01-11 ---
 Therapist: How was the week?
 Client: Hard. I kept thinking about it.
 
 --- Session 2 — 2024-01-18 ---
-…"></textarea>
-    <p class="einfuegen-hinweis">
-      A line like <code>--- Session 7 — 2024-03-14 ---</code>, <code>### Sitzung 7</code>
-      or just a date on its own line starts a new session. Without any such line
-      a long text is cut into equal segments instead, and the report says so.
-    </p>
+…"
+        ></textarea>
+        <p class="einfuegen-hinweis">
+          A line like <code>--- Session 7 — 2024-03-14 ---</code>,
+          <code>### Sitzung 7</code>
+          or just a date on its own line starts a new session. Without any such
+          line a long text is cut into equal segments instead, and the report
+          says so.
+        </p>
 
-    <p class="ablage-knoepfe">
-      <button type="button" id="einfuegen-los" class="knopf">Analyse this text</button>
-      <!-- A <label for=…> rather than an onclick attribute: inline scripts are
+        <p class="ablage-knoepfe">
+          <button type="button" id="einfuegen-los" class="knopf">
+            Analyse this text
+          </button>
+          <!-- A <label for=…> rather than an onclick attribute: inline scripts are
            forbidden by the CSP above, and that should stay true. -->
-      <input type="file" id="dateiwahl" multiple hidden
-             accept=".txt,.md,.vtt,.srt,.json,.csv,.tsv,.docx">
-      <label for="dateiwahl" class="knopf knopf-leise">Choose files instead</label>
-      <button type="button" id="beispiele">Try it with synthetic samples</button>
-    </p>
-    <p class="dateiformate">
-      Drop files anywhere on this panel.
-      .txt · .md · .vtt · .srt · .json (Whisper) · .csv · .tsv · .docx
-    </p>
-  </div>
-
-  <section class="versprechen">
-    <h3>What you get</h3>
-    <dl class="ansichten">
-      <div>
-        <dt>What was read</dt>
-        <dd>
-          Per file: format, language, speaker labels, how the text was split
-          into sessions — and which figures are therefore <em>unavailable</em>.
-          It comes first on purpose. Whoever sees curves before they learn the
-          speakers were guessed has already believed the curves.
-        </dd>
+          <input
+            type="file"
+            id="dateiwahl"
+            multiple
+            hidden
+            accept=".txt,.md,.vtt,.srt,.json,.csv,.tsv,.docx,.html,.htm"
+          />
+          <label for="dateiwahl" class="knopf knopf-leise"
+            >Choose files instead</label
+          >
+          <button type="button" id="beispiele">
+            Try it with synthetic samples
+          </button>
+        </p>
+        <p class="dateiformate">
+          Drop files anywhere on this panel. .txt · .md · .vtt · .srt · .json
+          (Whisper) · .csv · .tsv · .docx · .html
+        </p>
       </div>
-      <div>
-        <dt>Session</dt>
-        <dd>
-          One page per hour: language markers, affect through the session, talk
-          ratio, question types, and threads that were dropped.
-        </dd>
+
+      <section class="versprechen">
+        <h3>What you get</h3>
+        <dl class="ansichten">
+          <div>
+            <dt>What was read</dt>
+            <dd>
+              Per file: format, language, speaker labels, how the text was split
+              into sessions — and which figures are therefore
+              <em>unavailable</em>. It comes first on purpose. Whoever sees
+              curves before they learn the speakers were guessed has already
+              believed the curves.
+            </dd>
+          </div>
+          <div>
+            <dt>Session</dt>
+            <dd>
+              One page per hour: language markers, affect through the session,
+              talk ratio, question types, and threads that were dropped.
+            </dd>
+          </div>
+          <div>
+            <dt>Trends</dt>
+            <dd>
+              The year at once. Every marker as a trajectory with Bayesian
+              changepoints, and who enters and leaves the narrative.
+            </dd>
+          </div>
+          <div>
+            <dt>Keywords</dt>
+            <dd>
+              Which words carry the case: what is distinctive about one session
+              against the others, which vocabulary is rising and which is
+              fading, and any word you name plotted across the whole text.
+            </dd>
+          </div>
+          <div>
+            <dt>Concordance</dt>
+            <dd>
+              Every number in the tool is clickable and opens the lines that
+              produced it. Without the way back this would be a dashboard you
+              watch instead of a person you listen to.
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="versprechen">
+        <h3>Nothing is uploaded, and you can check that</h3>
+        <p>
+          This page is a set of static files; your transcripts are read into
+          memory and analysed there, by a Python runtime that also runs in the
+          browser.
+          <strong
+            >Load the page, switch off your Wi-Fi, and keep working</strong
+          >
+          — everything still runs. An application that transmitted your data
+          could not do that. The flip side, so that it is said: results live
+          only in this tab. Reload and you start over. Anything you want to
+          keep, you export yourself.
+        </p>
+        <p>
+          No diagnoses, no scores, no severity ratings, no “insights” written in
+          sentences. It counts things and plots them. The interpretation is your
+          work and stays your work.
+        </p>
+      </section>
+
+      <section class="versprechen">
+        <h3>Two languages, two rulers</h3>
+        <p>
+          German and English sessions are each read with their own word lists,
+          and nothing is ever translated — a translated lexicon would measure
+          the translation. Within one language the numbers compare cleanly;
+          across the two they do not, because the word lists are different
+          sizes. The language is detected per file, shown in the report, and
+          correctable in one click; anywhere the tool puts the two side by side,
+          it says so.
+        </p>
+      </section>
+
+      <section class="versprechen">
+        <h3>What the numbers can carry</h3>
+        <dl class="grade">
+          <div>
+            <dt>A</dt>
+            <dd>Well grounded, robustly computable.</dd>
+          </div>
+          <div>
+            <dt>B</dt>
+            <dd>
+              Sound reasoning, heuristic implementation. Useful as a trajectory.
+            </dd>
+          </div>
+          <div>
+            <dt>C</dt>
+            <dd>Exploratory. Interesting to look at, not to conclude from.</dd>
+          </div>
+        </dl>
+        <p>
+          <strong>And, without softening:</strong> one session is noise — below
+          roughly ten sessions most markers mean nothing. A transcript is not a
+          session; tone, pause, body and silence are gone. Speech-recognition
+          errors are not random, and they fall hardest on exactly the
+          low-frequency emotional vocabulary the granularity measure most wants
+          to count. The lexicons are adapted, not validated.
+        </p>
+        <p>
+          <strong>Consent is yours to settle.</strong> Your clients consented to
+          being recorded. They almost certainly did not consent to computational
+          analysis of their language. That is your call to make — but it should
+          be made deliberately rather than by default, and it is worth raising
+          with your professional body.
+        </p>
+      </section>
+    </main>
+
+    <div id="ansicht"></div>
+
+    <aside id="schublade" hidden aria-label="Evidence">
+      <div class="schublade-kopf">
+        <h3 id="schublade-titel"></h3>
+        <button id="schublade-zu" aria-label="Close">Close</button>
       </div>
-      <div>
-        <dt>Trends</dt>
-        <dd>
-          The year at once. Every marker as a trajectory with Bayesian
-          changepoints, and who enters and leaves the narrative.
-        </dd>
-      </div>
-      <div>
-        <dt>Keywords</dt>
-        <dd>
-          Which words carry the case: what is distinctive about one session
-          against the others, which vocabulary is rising and which is fading,
-          and any word you name plotted across the whole text.
-        </dd>
-      </div>
-      <div>
-        <dt>Concordance</dt>
-        <dd>
-          Every number in the tool is clickable and opens the lines that
-          produced it. Without the way back this would be a dashboard you watch
-          instead of a person you listen to.
-        </dd>
-      </div>
-    </dl>
-  </section>
+      <div id="schublade-inhalt"></div>
+    </aside>
 
-  <section class="versprechen">
-    <h3>Nothing is uploaded, and you can check that</h3>
-    <p>
-      This page is a set of static files; your transcripts are read into memory
-      and analysed there, by a Python runtime that also runs in the browser.
-      <strong>Load the page, switch off your Wi-Fi, and keep working</strong> —
-      everything still runs. An application that transmitted your data could not
-      do that. The flip side, so that it is said: results live only in this tab.
-      Reload and you start over. Anything you want to keep, you export yourself.
-    </p>
-    <p>
-      No diagnoses, no scores, no severity ratings, no “insights” written in
-      sentences. It counts things and plots them. The interpretation is your
-      work and stays your work.
-    </p>
-  </section>
+    <dialog id="namensdialog">
+      <form method="dialog" class="dialog-inhalt">
+        <h2>Who are these people?</h2>
+        <p>
+          Thera.py has guessed at personal names in the text. You know which of
+          these are actually people; the machine does not. Whatever you confirm
+          is replaced by a stable placeholder (“Person A”) before anything else
+          is computed. The mapping from placeholder to name stays in your
+          browser and is never stored.
+        </p>
+        <ul id="namensliste"></ul>
+        <div class="dialog-knoepfe">
+          <button type="button" id="namen-ueberspringen">Skip</button>
+          <button type="button" id="namen-uebernehmen">
+            Replace and analyse
+          </button>
+        </div>
+      </form>
+    </dialog>
 
-  <section class="versprechen">
-    <h3>Two languages, two rulers</h3>
-    <p>
-      German and English sessions are each read with their own word lists, and
-      nothing is ever translated — a translated lexicon would measure the
-      translation. Within one language the numbers compare cleanly; across the
-      two they do not, because the word lists are different sizes. The language
-      is detected per file, shown in the report, and correctable in one click;
-      anywhere the tool puts the two side by side, it says so.
-    </p>
-  </section>
+    <footer class="fusszeile">
+      Thera.py reads the shadow of the hour, not the hour. Tone, pause, body and
+      silence are not in a transcript.
+      <a href="https://github.com/farnoosh-shamsian/thera.py"
+        >Source and documentation</a
+      >
+      · no build step, no dependencies, no tracking.
+    </footer>
 
-  <section class="versprechen">
-    <h3>What the numbers can carry</h3>
-    <dl class="grade">
-      <div><dt>A</dt><dd>Well grounded, robustly computable.</dd></div>
-      <div><dt>B</dt><dd>Sound reasoning, heuristic implementation. Useful as a trajectory.</dd></div>
-      <div><dt>C</dt><dd>Exploratory. Interesting to look at, not to conclude from.</dd></div>
-    </dl>
-    <p>
-      <strong>And, without softening:</strong> one session is noise — below
-      roughly ten sessions most markers mean nothing. A transcript is not a
-      session; tone, pause, body and silence are gone. Speech-recognition errors
-      are not random, and they fall hardest on exactly the low-frequency
-      emotional vocabulary the granularity measure most wants to count. The
-      lexicons are adapted, not validated.
-    </p>
-    <p>
-      <strong>Consent is yours to settle.</strong> Your clients consented to
-      being recorded. They almost certainly did not consent to computational
-      analysis of their language. That is your call to make — but it should be
-      made deliberately rather than by default, and it is worth raising with
-      your professional body.
-    </p>
-  </section>
-</main>
-
-<div id="ansicht"></div>
-
-<aside id="schublade" hidden aria-label="Evidence">
-  <div class="schublade-kopf">
-    <h3 id="schublade-titel"></h3>
-    <button id="schublade-zu" aria-label="Close">Close</button>
-  </div>
-  <div id="schublade-inhalt"></div>
-</aside>
-
-<dialog id="namensdialog">
-  <form method="dialog" class="dialog-inhalt">
-    <h2>Who are these people?</h2>
-    <p>
-      Thera.py has guessed at personal names in the text. You know which of
-      these are actually people; the machine does not. Whatever you confirm is
-      replaced by a stable placeholder (“Person A”) before anything else is
-      computed. The mapping from placeholder to name stays in your browser and
-      is never stored.
-    </p>
-    <ul id="namensliste"></ul>
-    <div class="dialog-knoepfe">
-      <button type="button" id="namen-ueberspringen">Skip</button>
-      <button type="button" id="namen-uebernehmen">Replace and analyse</button>
-    </div>
-  </form>
-</dialog>
-
-<footer class="fusszeile">
-  Thera.py reads the shadow of the hour, not the hour. Tone, pause, body and
-  silence are not in a transcript.
-  <a href="https://github.com/farnoosh-shamsian/thera.py">Source and documentation</a>
-  · no build step, no dependencies, no tracking.
-</footer>
-
-<script type="module" src="app/main.js"></script>
-</body>
+    <script type="module" src="app/main.js"></script>
+  </body>
 </html>
