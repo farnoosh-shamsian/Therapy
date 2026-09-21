@@ -67,7 +67,7 @@ pyodide*.tar.gz
 # ---------------------------------------------------------------------------
 # Editors, tooling, operating systems
 # ---------------------------------------------------------------------------
-.claude/settings.local.json
+.claude/
 .vscode/
 .idea/
 *.swp
