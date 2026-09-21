@@ -37,7 +37,7 @@ def _sammle(ort: Path) -> list[Path]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="therapy",
+        prog="Thera-py",
         description="Distant reading for German and English psychotherapy "
                     "transcripts. The language is detected per file.")
     unter = parser.add_subparsers(dest="befehl", required=True)

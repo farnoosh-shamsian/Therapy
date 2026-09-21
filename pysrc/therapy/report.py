@@ -612,7 +612,7 @@ GELTUNGSHINWEISE = [
     },
     {
         "titel": "A transcript is not a session.",
-        "text": ("Tone, pause, body and silence are gone. Thera.py reads the "
+        "text": ("Tone, pause, body and silence are gone. Thera-py reads the "
                  "shadow of the hour, not the hour."),
     },
     {

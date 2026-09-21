@@ -28,6 +28,7 @@ sessions/
 # What this tool writes *about* transcripts. The export carries no names and no
 # transcript lines (see `Korpus.export`), but it is still a year of one
 # person's therapy in numbers, and it belongs on your machine and not here.
+Thera-py-analysis-*.json
 therapy-analysis-*.json
 /report.json
 /bericht.json

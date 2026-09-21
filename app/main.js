@@ -102,7 +102,7 @@ async function ladePyodide() {
 
   App.py = await globalThis.loadPyodide({ indexURL: basis });
 
-  status('Writing Thera.py into the runtime …', 0.7);
+  status('Writing Thera-py into the runtime …', 0.7);
   App.py.FS.mkdirTree('/pkg/therapy/lexika');
   App.py.FS.mkdirTree('/pkg/therapy/lexika_en');
   App.py.FS.mkdirTree('/pkg/therapy/sprachen');
@@ -112,7 +112,7 @@ async function ladePyodide() {
     if (!antwort.ok) throw new Error(`Missing file: pysrc/${pfad}`);
     App.py.FS.writeFile('/pkg/' + pfad, await antwort.text(), { encoding: 'utf8' });
     geladen += 1;
-    status('Writing Thera.py into the runtime …', 0.7 + 0.25 * (geladen / PY_DATEIEN.length));
+    status('Writing Thera-py into the runtime …', 0.7 + 0.25 * (geladen / PY_DATEIEN.length));
   }
   App.py.runPython("import sys; sys.path.insert(0, '/pkg')");
   App.ot = App.py.pyimport('therapy');
@@ -501,7 +501,7 @@ function exportiere() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `therapy-analysis-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `Thera-py-analysis-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }

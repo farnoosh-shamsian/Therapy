@@ -3,13 +3,13 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "thera-py"
+name = "Thera-py"
 version = "0.1.0"
 description = "Distant reading for German and English psychotherapy transcripts. Runs in the browser, offline."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Thera.py" }]
+authors = [{ name = "Thera-py" }]
 keywords = ["german", "english", "psychotherapy", "transcripts", "corpus", "distant reading"]
 
 # Deliberately zero runtime dependencies.
@@ -24,7 +24,7 @@ dependencies = []
 dev = ["pytest>=7"]
 
 [project.scripts]
-therapy = "therapy.cli:main"
+Thera-py = "therapy.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "pysrc" }

@@ -1,8 +1,8 @@
-# Thera.py
+# Thera-py
 
-**Read a year of transcripts at once.**
+**A distant reading of therapy session transcriptions.**
 
-Thera.py counts the things in a transcript of therapy sessions that are too small to hear one at a time, plots them
+Thera-py counts the things in a transcript of therapy sessions that are too small to hear one at a time, plots them
 across the whole course, and makes every number clickable back to the lines that
 produced it.
 
@@ -28,7 +28,7 @@ Content-Security-Policy in `index.html` blocks it at the browser level as a
 second line of defence.
 
 **The flip side:** results live only in that tab. Reload and you start over.
-Anything you want to keep, you export yourself. In exchange, Thera.py cannot be
+Anything you want to keep, you export yourself. In exchange, Thera-py cannot be
 subpoenaed, breached, or quietly changed under you.
 
 **The export** writes a JSON file to your machine. It never contains transcript
@@ -78,7 +78,7 @@ things to know:
 - **Export the transcript, not the generated notes.** Notes have no turns and no
   speakers, so everything on the dialogue side goes dark.
 - **Check who is who.** `Sprecher 1`/`Sprecher 2` means the voices were
-  separated without knowing which is which. Thera.py guesses — whoever talks
+  separated without knowing which is which. Thera-py guesses — whoever talks
   less is the therapist — and says so. There is a _swap_ button next to the
   guess. It is the single judgement everything about _you_ rests on.
 - **Save the same day.** These assistants delete session data within the day by
@@ -122,7 +122,7 @@ And, without softening:
 - **One session is noise.** Below roughly ten sessions most markers mean
   nothing.
 - **A transcript is not a session.** Tone, pause, body and silence are gone.
-  Thera.py reads the shadow of the hour, not the hour.
+  Thera-py reads the shadow of the hour, not the hour.
 - **Speech-recognition errors are not random.** They fall hardest on exactly
   the low-frequency emotional vocabulary the granularity measure most wants to
   count.
@@ -199,7 +199,7 @@ not for the step between them.
 
 ## Names
 
-Before anything is analysed, Thera.py finds likely personal names and puts them
+Before anything is analysed, Thera-py finds likely personal names and puts them
 in front of you once. What you confirm becomes a stable placeholder — "Person A"
 is the same person across all twelve sessions, otherwise the sociogram would be
 worthless. The mapping stays in the tab, is never stored, and is not exported.
@@ -227,7 +227,8 @@ detection.
 
 ---
 
-_"Thera.py" is the display name; Python packages cannot contain a dot, so the
-importable package is `therapy` and the distribution is `thera-py`._
+_"Thera-py" is the name everywhere it is read: the repository, the page, the
+command, the distribution. Python import names cannot contain a hyphen, so the
+importable package alone stays `therapy` — `import therapy`._
 
 This all has been build with the assistance of Claude Opus 5.
