@@ -1,19 +1,4 @@
-"""Der Bogen — alles über Sitzungen hinweg, plus Wechselpunkte.
-
-Was der Therapeut am Ende wirklich will, sind nicht zwölf Liniendiagramme,
-sondern einen Satz: *um Sitzung 9 herum hat sich etwas verschoben.* Danach
-geht er selbst nachsehen, warum. Genau das rechnet dieses Modul.
-
-Die Wechselpunkterkennung ist eine Bayes'sche Einzelwechselpunkt-Analyse mit
-Normal-Inverse-Gamma-Prior, rekursiv angewandt (binäre Segmentierung). Sie
-liefert nicht nur eine Position, sondern eine Posteriorverteilung darüber und
-einen Bayes-Faktor gegen das Modell „kein Wechselpunkt“. Das ist wichtiger,
-als es klingt: bei zwölf Datenpunkten *findet* jedes Verfahren einen
-Wechselpunkt. Die Frage ist, ob er etwas bedeutet, und der Bayes-Faktor ist
-die einzige Zahl hier, die darauf antwortet.
-
-Reine Standardbibliothek, absichtlich. Kein numpy, kein scipy.
-"""
+"""Der Bogen."""
 
 from __future__ import annotations
 
@@ -96,7 +81,7 @@ def _standardisiere(werte: list[float]) -> list[float]:
 
 
 def einzelner_wechselpunkt(werte: list[float]) -> Wechselpunkt | None:
-    """Bester Wechselpunkt einer Reihe mit Posterior und Bayes-Faktor."""
+    """Bester Wechselpunkt einer Reihe."""
     n = len(werte)
     if n < 2 * MIN_SEGMENT:
         return None
@@ -133,13 +118,7 @@ def einzelner_wechselpunkt(werte: list[float]) -> Wechselpunkt | None:
 
 def wechselpunkte(werte: list[float], sitzungsnummern: list[int] | None = None,
                   max_punkte: int = 3) -> list[Wechselpunkt]:
-    """Mehrere Wechselpunkte über binäre Segmentierung.
-
-    Jedes Teilstück wird erneut geprüft; abgebrochen wird, sobald der
-    Bayes-Faktor unter die Schwelle fällt. Kein Verfahren mit fester
-    Punktzahl — wenn nichts da ist, kommt eine leere Liste zurück, und das
-    ist ein gültiges Ergebnis.
-    """
+    """Mehrere Wechselpunkte über binäre Segmentierung."""
     if len(werte) < MIN_SITZUNGEN:
         return []
     gefunden: list[Wechselpunkt] = []
@@ -171,11 +150,7 @@ def wechselpunkte(werte: list[float], sitzungsnummern: list[int] | None = None,
 # ---------------------------------------------------------------------------
 
 def rangkorrelation(werte: list[float]) -> float:
-    """Spearman-Korrelation gegen die Sitzungsreihenfolge.
-
-    Rangbasiert, weil ein einzelner Ausreisser bei zwölf Sitzungen eine
-    Regressionsgerade sonst komplett dreht.
-    """
+    """Spearman-Korrelation gegen die Sitzungsreihenfolge."""
     n = len(werte)
     if n < 4:
         return 0.0
@@ -205,7 +180,7 @@ def _raenge(werte: list[float]) -> list[float]:
 
 
 def glaetten(werte: list[float], fenster: int = 3) -> list[float]:
-    """Gleitender Mittelwert. Nur für die Darstellung, nie für die Rechnung."""
+    """Gleitender Mittelwert."""
     if fenster <= 1 or len(werte) < fenster:
         return list(werte)
     rand = fenster // 2
@@ -222,22 +197,7 @@ def glaetten(werte: list[float], fenster: int = 3) -> list[float]:
 
 def reihen(marker_je_sitzung: list[dict[str, "object"]],
            sprecher: str = KLIENT) -> dict[str, list[float]]:
-    """Baut aus den Sitzungsmarkern eine Reihe pro Kennzahl.
-
-    **Nur vollständige Reihen kommen zurück.** Wechselt ein Klient mitten in
-    der Fallgeschichte die Sprache, gibt es Kennzahlen, die nur einen Teil der
-    Sitzungen haben — ``man_quote`` für die deutschen, ``generisch_quote`` für
-    die englischen. Eine Reihe, die für die halbe Achse keinen Wert hat, darf
-    nicht gezeichnet werden: die Lücke mit Nullen zu füllen wäre eine
-    Behauptung über eine Sitzung, in der gar nicht gemessen wurde.
-
-    Stattdessen bekommt jeder Begriff aus ``VERGLEICHBAR`` zusätzlich eine
-    zusammengesetzte Reihe unter ``vgl_<begriff>``. Sie ist über die
-    Sprachgrenze hinweg durchgehend und trägt genau so viel, wie der
-    Docstring von :mod:`therapy.sprachen` es zulässt: der Verlauf ist
-    lesbar, die Höhe ist zwischen den Abschnitten nicht vergleichbar, und die
-    Oberfläche schreibt das an die Kurve.
-    """
+    """Baut aus den Sitzungsmarkern eine Reihe pro."""
     je_sitzung: list[dict[str, float]] = []
     for eintrag in marker_je_sitzung:
         sm = eintrag[sprecher]
@@ -259,29 +219,12 @@ def reihen(marker_je_sitzung: list[dict[str, "object"]],
 
 def komposit(serien: dict[str, list[float]],
              sprache: str = sprachen.STANDARD) -> list[float]:
-    """Gewichteter Index aus mehreren Markern, z-standardisiert.
-
-    Einzelne Marker rauschen bei einer Sitzung pro Woche stark. Der Index
-    bündelt die, die in dieselbe Richtung zeigen sollten (Aneignung,
-    Differenzierung, Verarbeitung), und macht den Wechselpunkt dadurch
-    überhaupt erst auffindbar. Das Vorzeichen jeder Komponente steht im
-    Sprachpaket unter ``KOMPOSIT_INDEX`` und ist eine inhaltliche Setzung,
-    keine statistische.
-
-    Beide Sprachen benutzen dieselben zehn Komponenten mit denselben
-    Gewichten. Da jede Komponente vor der Summierung z-standardisiert wird,
-    rechnet der Index ohnehin in Standardabweichungen *dieses* Falles und
-    nicht in Raten — deshalb ist er die eine Zahl in diesem Werkzeug, die eine
-    Sprachgrenze verträgt.
-    """
+    """Gewichteter Index aus mehreren Markern, z-standardisiert."""
     laenge = max((len(v) for v in serien.values()), default=0)
     if not laenge:
         return []
     pak = sprachen.paket(sprache)
-    # Rückwärtsabbildung: wenn der sprachspezifische Schlüssel fehlt, weil der
-    # Klient die Sprache gewechselt hat, springt die zusammengesetzte Reihe
-    # ein. Ohne das verlöre der Index bei gemischten Fällen ausgerechnet die
-    # Distanzierung — die Komponente mit dem grössten Gewicht.
+    # Rückwärtsabbildung auf Sitzungsnummern.
     ersatz = {schluessel: "vgl_" + begriff
               for begriff, schluessel in pak.VERGLEICHBAR.items()}
     summe = [0.0] * laenge

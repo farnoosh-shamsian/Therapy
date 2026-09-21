@@ -1,22 +1,4 @@
-"""Verlorene Fäden — offene Türen, durch die niemand gegangen ist.
-
-Das Feature, das als Erstes gebaut würde, wenn nur eines gebaut werden dürfte.
-
-Gesucht werden Stellen, an denen der Klient etwas emotional Geladenes gesagt
-hat und der Faden danach gestorben ist. Die Heuristik in drei Schritten:
-
-1. Ein Klientenbeitrag, überdurchschnittlich lang und mit hoher Affektdichte.
-2. Der folgende Therapeutenbeitrag nimmt fast nichts davon auf und wechselt
-   das Thema.
-3. Der übernächste Klientenbeitrag kommt nicht auf den Inhalt zurück.
-
-**Zur Darstellung, die hier Teil der Methode ist und nicht Kosmetik:** das
-Ergebnis ist eine Liste von *Stellen zum Nachlesen*, nicht von Fehlern. Ein
-Faden kann aus sehr guten Gründen liegen bleiben — weil die Zeit um war, weil
-es zu früh war, weil der Therapeut etwas gehört hat, was im Transkript nicht
-steht. Wer diese Liste als Vorwurf formuliert, macht aus einem Werkzeug eine
-Anklage, und dann wird es zu Recht nicht benutzt.
-"""
+"""Verlorene Fäden."""
 
 from __future__ import annotations
 
@@ -28,8 +10,7 @@ from .dialogue import ist_rueckkanal
 from .ingest import KLIENT, THERAPEUT, Sitzung, Turn
 from .tokenize import tokenisiere
 
-# Schwellen. Bewusst konservativ: lieber ein paar Stellen übersehen als eine
-# Liste, die so lang ist, dass niemand sie durchgeht.
+# Schwellen.
 MIN_AFFEKT = 2               # benannte Gefühlswörter im Klientenbeitrag
 MAX_AUFNAHME = 0.10          # Anteil übernommener Inhaltswörter
 MAX_RUECKKEHR = 0.15         # Anteil im übernächsten Klientenbeitrag
@@ -77,12 +58,7 @@ def _inhalt(text: str, sprache: str = sprachen.STANDARD) -> set[str]:
 
 
 def affektwoerter(text: str, sprache: str = sprachen.STANDARD) -> list[str]:
-    """Benannte Gefühlswörter und Körperaffekt in einem Beitrag.
-
-    Wird auch von ``report.py`` für den Affektverlauf innerhalb der Stunde
-    gebraucht — deshalb liegt die Funktion hier und nicht in markers.py, und
-    deshalb nimmt sie die Sprache und nicht ein Sprachpaket.
-    """
+    """Benannte Gefühlswörter und Körperaffekt in einem Beitrag."""
     pak = sprachen.paket(sprache)
     emo = pak.emotion
     gefunden = []
@@ -140,14 +116,7 @@ def finde(sitzung: Sitzung) -> list[Faden]:
             if rueckkehr > MAX_RUECKKEHR:
                 continue
 
-        # Stärke: wie geladen war die Stelle, und wie vollständig ist sie
-        # liegen geblieben. Bewusst grob — sie sortiert nur die Liste und ist
-        # keine Zahl, die irgendwo als Messwert auftaucht.
-        #
-        # Alle vier Komponenten sind gesättigt statt gekappt. Eine Kappung bei
-        # 1.0 führt dazu, dass die halbe Liste exakt 1,00 bekommt und die
-        # Sortierung nichts mehr leistet — genau das passiert bei jeder
-        # Formel, die irgendwo ein min(1.0, …) stehen hat.
+        # Stärke aus Affekt, Länge und Rückkehr.
         affektdichte = len(affekt) / max(woerter, 1)
         komponenten = (
             affektdichte / (affektdichte + 0.04),          # Ladung

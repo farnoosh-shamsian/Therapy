@@ -1,25 +1,10 @@
-"""Sprachpaket Deutsch.
-
-Der Inhalt dieses Moduls stand bis zur Zweisprachigkeit direkt in
-``markers.py``. Er ist unverändert hierher gezogen worden, nicht umgeschrieben
-— die deutschen Zahlen sollen nach dem Umbau dieselben sein wie vorher, und
-die Tests in ``tests/test_marker.py`` prüfen genau das.
-
-Was hier steht, ist deutsche Morphologie: Partizip-II-Bildung, das
-werden-Passiv, die Hilfsverb-Tempusheuristik und der Positionsfilter für
-Modalpartikeln. Nichts davon hat im englischen Paket ein Gegenstück, das
-bloss andere Wörter hätte — das englische Paket macht dieselben Aufgaben mit
-anderer Mechanik, und das ist der Grund, warum es zwei Pakete gibt und nicht
-eine Funktion mit einer Wortliste als Parameter.
-"""
+"""Sprachpaket Deutsch."""
 
 from __future__ import annotations
 
 import re
 
-# ``emotion`` und ``funktion`` sehen hier ungenutzt aus und sind es nicht:
-# sie gehören zum Paketvertrag. dialogue.py, threads.py und people.py greifen
-# sie als ``pak.funktion`` usw. ab.
+# ``emotion`` und ``funktion`` sehen hier ungenutzt aus.
 from ..lexika import dialogmuster, emotion, funktion, marker as lex  # noqa: F401
 from ..tokenize import ABKUERZUNGEN_DE, lemma_grob
 
@@ -33,16 +18,13 @@ NEGATIV_PRAEFIXE = lex.NEGATIV_PRAEFIXE
 NEGATIV_SUFFIXE = lex.NEGATIV_SUFFIXE
 ABKUERZUNGEN = ABKUERZUNGEN_DE
 
-# Nur das Deutsche schreibt Substantive gross und bildet geschlossene
-# Komposita. Beides nutzt ``markers.py`` aus; im englischen Paket stehen die
-# Schalter auf False, und die Oberfläche lässt die entsprechenden Blöcke weg,
-# statt sie leer anzuzeigen.
+# Substantivgrossschreibung: hilft und stört zugleich.
 KOMPOSITA = True
 GROSSSCHREIBUNG_IST_SUBSTANTIV = True
 
 lemma = lemma_grob
 
-# Partizip II ohne "ge-" (untrennbare Präfixe) bzw. mit.
+# Partizip II ohne "ge-" (untrennbare Präfixe) bzw.
 _PARTIZIP2 = re.compile(
     r"\b(?:ge\w{2,}(?:t|en)|(?:be|ver|er|ent|emp|zer|miss)\w{2,}(?:t|en))\b")
 
@@ -53,12 +35,7 @@ _PARTIZIP2 = re.compile(
 
 def wortmarker_ok(name: str, form: str, klein: str, start: int,
                   wort_tokens: list) -> bool:
-    """Filtert die offensichtlichsten Fehlalarme aus der Partikelzählung.
-
-    "Ja." als Antwort ist keine Modalpartikel. "Nur" am Satzanfang ist
-    Fokuspartikel. Mehr ist ohne Parser nicht drin, und der Rest wird in der
-    Oberfläche als bekannte Unschärfe benannt.
-    """
+    """Filtert die offensichtlichsten Fehlalarme aus der Partikelzählung."""
     if not name.startswith("partikel_"):
         return True
     if form not in lex.PARTIKEL_POSITION_AUSNAHMEN:
@@ -66,14 +43,14 @@ def wortmarker_ok(name: str, form: str, klein: str, start: int,
     idx = next((i for i, t in enumerate(wort_tokens) if t.start == start), None)
     if idx is None:
         return True
-    # Erstes Wort im Satz → eher Antwort-/Fokuspartikel als Modalpartikel.
+    # Erstes Wort im Satz → eher Antwort-/Fokuspartikel.
     if idx == 0 or wort_tokens[idx].satz != wort_tokens[idx - 1].satz:
         return False
     return True
 
 
 def negation_morph_ok(wort: str) -> bool:
-    """"unfähig", "wertlos", "sinnlos" — aber nicht "Unterschied", "Losung"."""
+    """"unfähig", "wertlos", "sinnlos"."""
     return (len(wort) >= 7
             and (wort.startswith(NEGATIV_PRAEFIXE) or wort.endswith(NEGATIV_SUFFIXE)))
 
@@ -83,12 +60,7 @@ def negation_morph_ok(wort: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def tempus(wort_tokens: list, turn_idx: int, sm) -> None:
-    """Grobe Tempuszuordnung pro Satz über Hilfsverben.
-
-    Ein Satz wird höchstens einem Tempus zugeschlagen, Priorität:
-    Futur > Perfekt > Präteritum > Präsens. Ohne Partizip zählt "werden"
-    nicht als Futur, sonst wird jedes Passiv zur Zukunft.
-    """
+    """Grobe Tempuszuordnung pro Satz über Hilfsverben."""
     nach_satz: dict[int, list] = {}
     for tok in wort_tokens:
         nach_satz.setdefault(tok.satz, []).append(tok)
@@ -135,7 +107,7 @@ def passiv(wort_tokens: list, turn_idx: int, sm, text: str) -> None:
 # ---------------------------------------------------------------------------
 
 def kennzahlen(sm) -> dict[str, float]:
-    """Verdichtet die Rohzählungen zu den Zahlen, die in der Oberfläche stehen."""
+    """Verdichtet Rohzählungen zu Kennzahlen."""
     z = sm.zaehler
     man, ich = z.get("man", 0), z.get("ich_nom", 0)
     ich_obl = z.get("ich_obl", 0)
@@ -203,10 +175,6 @@ def kennzahlen(sm) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # Beschriftung für die Oberfläche
 # ---------------------------------------------------------------------------
-#
-# (Schlüssel, Anzeigename, Konfidenz, Kurzhinweis). Der Hinweis ist die
-# einfache Notiz, was die Zahl tragen kann — er steht an jedem Panel, nicht
-# in einer Fussnote.
 
 BESCHRIFTUNG: dict[str, tuple[str, str, str]] = {
     "man_quote": ("“man” instead of “ich”", "A",
@@ -300,8 +268,7 @@ BESCHRIFTUNG: dict[str, tuple[str, str, str]] = {
 }
 
 
-# Diese Marker tragen den Kompositindex der Arc-Ansicht. Vorzeichen sagt, in
-# welche Richtung "mehr" zeigt: +1 = mehr Aneignung/Verarbeitung.
+# Diese Marker tragen den Kompositindex der Arc-Ansicht.
 KOMPOSIT_INDEX = {
     "man_quote": -1.0,
     "hecken_rate": -0.7,
@@ -316,12 +283,7 @@ KOMPOSIT_INDEX = {
 }
 
 
-# Welche Kacheln die Sitzungskarte zeigt, in welcher Reihenfolge, und welche
-# Trefferliste ein Klick öffnet. Stand bis zur Zweisprachigkeit in views.js;
-# steht jetzt hier, weil die Auswahl eine sprachliche Entscheidung ist und
-# keine gestalterische.
-#
-#   (Kennzahl, Format, Markerschlüssel für die Belegliste)
+# Welche Kacheln die Sitzungskarte zeigt, in welcher.
 KACHELN = [
     ("man_quote", "prozent", "man"),
     ("granularitaet", "prozent", "emo_vage"),
@@ -345,8 +307,7 @@ ARC_REIHEN = [
 ]
 
 
-# Begriff → Schlüssel in dieser Sprache. Siehe die Warnung im Paketdocstring:
-# vergleichbar heisst "misst denselben Begriff", nicht "ist dieselbe Zahl".
+# Begriff → Schlüssel in dieser Sprache.
 VERGLEICHBAR = {
     "distanzierung": "man_quote",
     "irrealis": "konjunktiv2_rate",

@@ -1,24 +1,4 @@
-"""Einlesen: Formaterkennung, Parsen, Sprecherzuordnung — und ein ehrlicher Befund.
-
-Leitsatz dieses Moduls: **lieber melden als raten.** Das Transkriptformat ist
-unbekannt, und jede Heuristik hier kann danebenliegen. Was sie nicht darf, ist
-danebenliegen und so tun, als sei alles in Ordnung. Deshalb gibt jeder
-Einlesevorgang einen :class:`Befund` zurück, der sagt, was gefunden wurde, was
-geraten wurde und welche Kennzahlen deshalb *nicht* zur Verfügung stehen.
-
-Unterstützte Formate: ``.txt`` ``.vtt`` ``.srt`` ``.json`` (Whisper) ``.csv``
-``.tsv`` ``.docx`` ``.html`` ``.md``.
-
-``.docx`` und ``.html`` sind die Formate, in denen die verbreiteten
-Dokumentations-Assistenten (VIA u.a.) ein Transkript herausgeben. Sie setzen
-den Sprecher gern auf eine *eigene* Zeile statt vor einen Doppelpunkt —
-deshalb kennt der Textparser beide Schreibweisen.
-
-Seit das Werkzeug zweisprachig ist, gehört die **Sprache** zu genau diesen
-geratenen Dingen. Sie wird pro Sitzung erkannt, steht im Befund, und wenn die
-Erkennung unsicher ist oder eine Sitzung die Sprache wechselt, steht auch das
-dort — vor den Kurven und nicht hinter ihnen.
-"""
+"""Einlesen: Format, Turns, Sprecher, Befund."""
 
 from __future__ import annotations
 
@@ -61,7 +41,7 @@ class Turn:
 
 @dataclass(slots=True)
 class Sitzung:
-    """Eine Sitzung: geordnete Turns plus alles, was wir über die Datei wissen."""
+    """Eine Sitzung:."""
 
     sid: str
     dateiname: str
@@ -72,11 +52,9 @@ class Sitzung:
     format: str = "?"
     sprache: str = sprachen.STANDARD
     befund: "Befund | None" = None
-    # Position in der Quelldatei — hält aufgeteilte Sitzungen ohne Datum in der
-    # Reihenfolge, in der sie im Text standen.
+    # Position in der Quelldatei
     quelle_idx: int = 0
-    # True, wenn das hier keine echte Sitzung ist, sondern ein gleich grosses
-    # Stück eines Textes ohne Sitzungsmarken. Die Oberfläche sagt das dazu.
+    # True, wenn das hier keine echte Sitzung.
     ist_segment: bool = False
 
     @property
@@ -106,11 +84,7 @@ class Sitzung:
 
 @dataclass(slots=True)
 class Befund:
-    """Was das Einlesen gefunden hat — und was es dadurch nicht kann.
-
-    Wird in der Oberfläche als Erstes angezeigt. Wenn hier etwas fehlt, fehlt
-    es später auch, und das soll man sehen, bevor man Kurven anschaut.
-    """
+    """Was das Einlesen gefunden hat."""
 
     dateiname: str
     format: str
@@ -126,9 +100,7 @@ class Befund:
     sprache_quelle: str = "erkannt"     # "erkannt" | "dateiname" | "manuell" | "standard"
     sprache_sicherheit: float = 0.0
     anteil_fremdsprache: float = 0.0
-    # Wie die Datei in Sitzungen zerfiel: "keine" (eine Datei = eine Sitzung),
-    # "separator" (Sitzungsmarken im Text gefunden) oder "segmente" (keine
-    # Marken, in gleich grosse Stücke geschnitten).
+    # Wie die Datei in Sitzungen zerfiel:
     teilung: str = "keine"
     sitzungen_info: list[dict] = field(default_factory=list)
     # Roh-Fundstellen der Sitzungsmarken, (Turn-Index, Kopfdaten). Intern.
@@ -159,10 +131,6 @@ class Befund:
 # ---------------------------------------------------------------------------
 # Sprecherlabels
 # ---------------------------------------------------------------------------
-#
-# Zuordnung über Wortanfänge, nicht über Teilstrings: "Patient" soll treffen,
-# "Therapeutin" auch, aber ein Eigenname wie "Petra" darf nicht über das "P"
-# zum Patienten werden. Einzelbuchstaben werden deshalb gesondert behandelt.
 
 _THERAPEUT_MUSTER = re.compile(
     r"^(therapeut(in)?|thera|ther|therapist|behandler(in)?|psycholog(e|in|ist)?|"
@@ -176,8 +144,7 @@ _KLIENT_MUSTER = re.compile(
 # "Sprecher 1" / "SPEAKER_00" aus Diarisierungs-Werkzeugen.
 _ANONYM_MUSTER = re.compile(r"^(sprecher|speaker|spk|s)[\s_-]*(\d+)$", re.I)
 
-# Zeile mit Sprecherlabel: "T: …", "Therapeutin: …", "[00:12:03] K: …",
-# "(12:03) Patient – …"
+# Zeile mit Sprecherlabel:
 _LABEL_ZEILE = re.compile(
     r"""^\s*
         (?:[\[\(]?\s*(?P<zeit>\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?)\s*[\]\)]?\s*)?
@@ -189,13 +156,6 @@ _LABEL_ZEILE = re.compile(
 )
 
 # Sprecher auf einer *eigenen* Zeile, Text darunter:
-#
-#     Therapeut
-#     Wie war die Woche?
-#
-# So setzen Word- und HTML-Exporte den Sprecherwechsel — der Name steht fett
-# in einem eigenen Absatz, ohne Doppelpunkt. Bis hierher fiel diese Zeile
-# durch und wurde als gesprochener Satz gezählt.
 _NUR_LABEL_ZEILE = re.compile(
     r"""^\s*
         (?:[\[\(]?\s*(?P<zeit>\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?)\s*[\]\)]?\s*)?
@@ -211,9 +171,7 @@ _ZEIT_VTT = re.compile(
 _VTT_STIMME = re.compile(r"<v\s+([^>]+?)\s*>(.*?)(?:</v>)?$", re.S)
 _TAGS = re.compile(r"<[^>]+>")
 
-# HTML-Export: Skript und Stil fliegen ganz raus, Blockenden werden zu
-# Zeilenumbrüchen. Mehr braucht es nicht — was danach übrig bleibt, ist Text
-# mit Sprecherzeilen, und dafür gibt es schon einen Parser.
+# HTML-Export: Sprecher im eigenen Absatz.
 _HTML_WEG = re.compile(r"<(script|style)\b.*?</\s*\1\s*>", re.I | re.S)
 _HTML_BLOCK = re.compile(
     r"</\s*(?:p|div|li|tr|h[1-6]|blockquote|section|article|td|th)\s*>"
@@ -230,12 +188,7 @@ _ENTITAETEN = {
 
 
 def _entitaeten(text: str) -> str:
-    """Löst HTML-Entitäten auf — ``&amp;`` als Letztes.
-
-    Die Reihenfolge ist keine Kosmetik: wer ``&amp;`` zuerst ersetzt, macht
-    aus dem geschriebenen ``&amp;lt;`` ein ``<`` und erfindet damit ein Tag,
-    das im Transkript nie stand.
-    """
+    """Löst HTML-Entitäten auf — ``&amp;`` als Letztes."""
     for roh, zeichen in _ENTITAETEN.items():
         text = text.replace(roh, zeichen)
     text = re.sub(r"&#(\d{1,6});",
@@ -276,8 +229,7 @@ def erkenne_format(dateiname: str, inhalt: str | bytes) -> str:
 
     if name.endswith(".docx") or kopf.startswith("PK"):
         return "docx"
-    # Bewusst eng: nur die Wurzel-Tags eines echten Dokuments. Ein Transkript,
-    # in dem einmal "<p>" als gesprochenes Zeichen vorkommt, ist kein HTML.
+    # Bewusst eng:
     if (name.endswith((".html", ".htm"))
             or re.search(r"<\s*(?:!doctype\s+html|html|head|body)\b", kopf, re.I)):
         return "html"
@@ -289,7 +241,7 @@ def erkenne_format(dateiname: str, inhalt: str | bytes) -> str:
         return "json"
     if name.endswith((".csv", ".tsv")):
         return "csv"
-    # CSV ohne Endung: erste Zeile hat Trenner und plausible Spaltennamen
+    # CSV ohne Endung:
     erste = kopf.split("\n", 1)[0]
     if erste.count(";") >= 1 or erste.count(",") >= 2 or erste.count("\t") >= 1:
         if re.search(r"sprecher|speaker|text|inhalt|redner|rolle", erste, re.I):
@@ -302,7 +254,7 @@ def erkenne_format(dateiname: str, inhalt: str | bytes) -> str:
 # ---------------------------------------------------------------------------
 
 def _parse_txt(text: str, befund: Befund) -> list[Turn]:
-    """Zeilenbasiert mit Sprecherlabels; ohne Labels ein Turn pro Absatz."""
+    """Zeilenbasiert mit Sprecherlabels; ohne Labels ein Turn."""
     turns: list[Turn] = []
     labels: dict[str, int] = {}
     aktuell: Turn | None = None
@@ -314,8 +266,7 @@ def _parse_txt(text: str, befund: Befund) -> list[Turn]:
             continue
         kopf = sitzungskopf(zeile)
         if kopf is not None:
-            # Die Marke steht *vor* dem naechsten Turn — der Index, den wir uns
-            # merken, ist deshalb die Laenge der bisherigen Turnliste.
+            # Die Marke steht *vor* dem naechsten Turn
             kopf["turn"] = len(turns)
             befund.abschnitt_marken.append(kopf)
             aktuell = None
@@ -336,9 +287,7 @@ def _parse_txt(text: str, befund: Befund) -> list[Turn]:
             turns.append(aktuell)
             continue
 
-        # Sprecher allein auf der Zeile, Text folgt darunter. Der Turn wird
-        # leer angelegt und von den nächsten Zeilen gefüllt; bleibt er leer,
-        # wirft ``lies`` ihn ohnehin weg.
+        # Sprecher allein auf der Zeile, Text folgt.
         nur = _reines_label(zeile)
         if nur is not None:
             label, zeit = nur
@@ -364,25 +313,6 @@ def _parse_txt(text: str, befund: Befund) -> list[Turn]:
 # ---------------------------------------------------------------------------
 # Sitzungsmarken in einem langen Text
 # ---------------------------------------------------------------------------
-#
-# Ein Jahr Therapie liegt oft in *einer* Datei. Bis hierher war eine Datei
-# immer genau eine Sitzung, und ein zusammengeklebtes Jahr wurde damit zu
-# einem einzigen Punkt — der Verlauf, also der ganze Zweck des Werkzeugs,
-# fiel lautlos aus.
-#
-# Zwei Klassen von Marken, bewusst getrennt:
-#
-# *stark*  — die Zeile sagt selbst, dass hier eine Sitzung beginnt: sie nennt
-#            "Sitzung"/"Session" mit einer Zahl, oder sie ist nichts als ein
-#            Datum. Zwei davon genügen zum Teilen.
-# *schwach* — eine blosse Trennlinie (``---``, ``===``). Ohne weitere Angabe
-#            ist das ein Hinweis, keine Aussage; sie wird nur benutzt, wenn
-#            keine starke Marke da ist und die entstehenden Stücke tragfähig
-#            sind.
-#
-# Was eine Marke *nicht* tut: sie verschwindet nicht mehr stillschweigend.
-# Vorher fiel "Session 3:" durch ``_plausibles_label`` und landete als
-# gesprochener Text im vorigen Turn.
 
 _KOPF_DATUM = re.compile(
     r"^[\s#\-=*_\[\(]*"
@@ -395,13 +325,10 @@ _KOPF_SITZUNG = re.compile(
 
 _KOPF_REGEL = re.compile(r"^\s*([-=*_])\1{2,}\s*$")
 
-# Ein Abschnitt unter dieser Turn-Zahl ist kein Abschnitt, sondern ein
-# Streuner — er wird an den vorigen angehängt statt eigene Sitzung zu werden.
+# Ein Abschnitt unter dieser Turn-Zahl ist kein.
 MIN_TURNS_JE_ABSCHNITT = 4
 
-# Rueckfallebene: ein langer Text ganz ohne Marken wird in gleich grosse
-# Stuecke geschnitten. Unter SEGMENT_MIN_WOERTER lohnt das nicht — da ist der
-# Text schlicht eine Sitzung.
+# Rückfallebene ohne Sprecherlabels.
 SEGMENT_MIN_WOERTER = 4000
 SEGMENT_ZIEL = 12
 SEGMENT_MIN = 6
@@ -409,18 +336,13 @@ SEGMENT_MAX = 20
 
 
 def sitzungskopf(zeile: str) -> dict | None:
-    """Erkennt eine Sitzungsmarke und liest Nummer und Datum aus ihr heraus.
-
-    Nummer und Datum kommen aus denselben Mustern, die ``metadaten_aus_name``
-    auf Dateinamen anwendet — was im Dateinamen gilt, gilt auch in der Zeile.
-    """
+    """Erkennt eine Sitzungsmarke, liest Nummer und Datum."""
     zeile = zeile.strip()
     if not zeile or len(zeile) > 120:
         return None
 
     if _KOPF_DATUM.match(zeile):
-        # Das Leerzeichen schuetzt "14.03.2024" davor, dass ".2024" als
-        # Dateiendung abgeschnitten wird.
+        # Das Leerzeichen schuetzt "14.03.2024" davor, dass ".2024".
         _, datum, _ = metadaten_aus_name(zeile + " ")
         return {"art": "stark", "nummer": None, "datum": datum, "zeile": zeile}
 
@@ -441,13 +363,12 @@ _META_MUSTER = re.compile(
 
 
 def _ist_metazeile(zeile: str) -> bool:
-    # Eine mit "#" beginnende Zeile ist in jedem Transkriptformat, das wir
-    # gesehen haben, ein Kommentar oder Kopf — und nie Gesprochenes.
+    # "#"-Zeilen sind Markdown-Überschriften.
     return zeile.startswith("#") or bool(_META_MUSTER.match(zeile))
 
 
 def _plausibles_label(label: str) -> bool:
-    """Verhindert, dass jeder Doppelpunkt im Fliesstext ein Sprecherwechsel wird."""
+    """Nicht jeder Doppelpunkt ist ein Sprecher."""
     label = label.strip()
     if not label or len(label) > 28:
         return False
@@ -457,33 +378,18 @@ def _plausibles_label(label: str) -> bool:
         return True
     if _ANONYM_MUSTER.match(label):
         return True
-    # Ein einzelnes grossgeschriebenes Wort oder "Vorname N." gilt als Name.
+    # Ein einzelnes grossgeschriebenes Wort oder "Vorname N.".
     return bool(re.match(r"^[A-ZÄÖÜ][\wÄÖÜäöüß.\-]*(\s+[A-ZÄÖÜ][\wÄÖÜäöüß.\-]*)?$", label))
 
 
 def _reines_label(zeile: str) -> tuple[str, str] | None:
-    """Eine Zeile, die aus nichts als einem Sprechernamen besteht.
-
-    Deutlich strenger als :func:`_plausibles_label`, und zwar aus einem
-    handfesten Grund: dort bürgt der Doppelpunkt dafür, dass jemand einen
-    Sprecher gemeint hat. Hier bürgt nichts. Ein kurzer Satz auf einer eigenen
-    Zeile — "Ja." — sähe sonst aus wie ein Sprecher und würde die Redeanteile
-    still verfälschen.
-
-    Deshalb zählt hier nur, was aus sich heraus ein Sprecher ist: eine
-    benannte Rolle (``Therapeut``, ``Patientin``, ``Client``) oder ein
-    Diarisierungs-Name (``Sprecher 1``, ``SPEAKER_00``). Ein blosser Eigenname
-    reicht nicht.
-    """
+    """Eine Zeile, die nur ein Sprecherlabel ist."""
     m = _NUR_LABEL_ZEILE.match(zeile)
     if not m:
         return None
     label = m.group("label").strip()
     kern = label.rstrip(".").strip()
-    # Einzelbuchstaben nicht: "T" und "K" sind gültige Sprecherkürzel, aber
-    # ohne Doppelpunkt stehen sie in einem eingefügten Text mit grösserer
-    # Wahrscheinlichkeit für irgendetwas anderes. Blocklayout schreibt die
-    # Rolle ohnehin aus.
+    # Einzelbuchstaben nicht:
     if len(kern) < 2:
         return None
     if (_THERAPEUT_MUSTER.match(kern) or _KLIENT_MUSTER.match(kern)
@@ -532,7 +438,7 @@ def _parse_vtt(text: str, befund: Befund) -> list[Turn]:
 
 
 def _parse_srt(text: str, befund: Befund) -> list[Turn]:
-    # Dieselbe Blockstruktur wie VTT, nur mit laufender Nummer davor.
+    # Dieselbe Blockstruktur wie VTT, nur mit laufender.
     text = re.sub(r"^\s*\d+\s*$", "", text, flags=re.M)
     return _parse_vtt(text, befund)
 
@@ -603,7 +509,7 @@ def _parse_csv(text: str, befund: Befund) -> list[Turn]:
     i_ende = finde("ende", "end", "stop")
     hat_kopf = i_text is not None or i_sprecher is not None
     if not hat_kopf:
-        # Kein Kopf: heuristisch Spalte 0 = Sprecher, letzte = Text.
+        # Kein Kopf:
         i_sprecher, i_text = 0, len(zeilen[0]) - 1
         befund.warnungen.append(
             "CSV without a recognisable header row — column 1 read as the "
@@ -629,7 +535,7 @@ def _parse_csv(text: str, befund: Befund) -> list[Turn]:
 
 
 def _parse_docx(rohdaten: bytes, befund: Befund) -> list[Turn]:
-    """docx ist ein ZIP mit XML darin. Reicht für Absätze, mehr brauchen wir nicht."""
+    """docx ist ein ZIP mit XML darin."""
     with zipfile.ZipFile(io.BytesIO(rohdaten)) as z:
         xml = z.read("word/document.xml").decode("utf-8", errors="replace")
     xml = re.sub(r"</w:p>", "\n", xml)
@@ -640,25 +546,14 @@ def _parse_docx(rohdaten: bytes, befund: Befund) -> list[Turn]:
 
 
 def _parse_html(text: str, befund: Befund) -> list[Turn]:
-    """HTML-Export: Blockenden werden zu Zeilenumbrüchen, dann wie Text.
-
-    Der Grund, dass es das gibt: die Dokumentations-Assistenten geben ein
-    Transkript als Word *oder* HTML heraus. Ohne diesen Weg fiel eine
-    HTML-Datei in den Textparser, und jedes ``<p>`` stand als gesprochenes
-    Wort in der Auswertung.
-    """
+    """HTML-Export: Tags weg, Sprecher behalten."""
     text = _HTML_WEG.sub(" ", text)
     text = _HTML_BLOCK.sub("\n", text)
     return _parse_txt(_entitaeten(_TAGS.sub("", text)), befund)
 
 
 def _fasse_gleiche_sprecher_zusammen(turns: list[Turn]) -> list[Turn]:
-    """VTT/SRT/Whisper zerhacken einen Redebeitrag in Untertitelzeilen.
-
-    Für Turn-Längen und Redeanteile ist das fatal — man zählt sonst
-    Untertitel statt Beiträge. Aufeinanderfolgende Segmente desselben
-    Sprechers werden deshalb zusammengefasst.
-    """
+    """VTT/SRT/Whisper zerhacken einen Redebeitrag in Untertitelzeilen."""
     if not turns:
         return turns
     zusammen: list[Turn] = []
@@ -669,7 +564,7 @@ def _fasse_gleiche_sprecher_zusammen(turns: list[Turn]) -> list[Turn]:
             letzter.ende_sek = t.ende_sek if t.ende_sek is not None else letzter.ende_sek
         elif zusammen and not t.roh_label and not zusammen[-1].roh_label:
             letzter = zusammen[-1]
-            # Ohne Labels: nur zusammenfassen, wenn die Lücke klein ist.
+            # Ohne Labels:.
             luecke = None
             if letzter.ende_sek is not None and t.start_sek is not None:
                 luecke = t.start_sek - letzter.ende_sek
@@ -694,18 +589,7 @@ def ordne_sprecher_zu(
     befund: Befund,
     manuell: dict[str, str] | None = None,
 ) -> None:
-    """Weist jedem Turn ``T``/``K``/``?`` zu und trägt die Quelle im Befund ein.
-
-    Drei Wege, in dieser Reihenfolge:
-
-    1. **Manuell.** Was der Therapeut in der Oberfläche zugeordnet hat, gilt.
-    2. **Sprechende Labels.** "Therapeutin:", "Pat:", "T:" — eindeutig.
-    3. **Geraten.** Nur bei genau zwei anonymen Labels ("Sprecher 1/2"), und
-       nur nach einem Kriterium, das benannt wird: wer weniger redet, ist der
-       Therapeut. Das stimmt in der Einzeltherapie meistens und ist trotzdem
-       eine Vermutung — sie steht als Warnung im Befund und ist in der
-       Oberfläche mit einem Klick umkehrbar.
-    """
+    """Weist jedem Turn ``T``/``K``/``?`` zu und trägt."""
     manuell = {k.strip().lower(): v for k, v in (manuell or {}).items()}
     labels = {t.roh_label for t in turns if t.roh_label}
 
@@ -791,9 +675,7 @@ _DATUM_MUSTER = [
 _KLIENT_MUSTER_DATEI = re.compile(
     r"(?:klient|client|kl|pat|patient)[\s_-]*([A-Za-zÄÖÜäöüß0-9]{1,20})", re.I)
 
-# Eine Sprachangabe im Dateinamen schlägt die Erkennung. Wer seine Dateien
-# "..._en.txt" nennt, hat die Frage schon beantwortet, und geraten wird nur
-# da, wo niemand etwas gesagt hat.
+# Eine Sprachangabe im Dateinamen schlägt die Erkennung.
 _SPRACHE_MUSTER_DATEI = re.compile(
     r"(?:^|[\s_.\-])(de|deu|ger|german|deutsch|en|eng|english|englisch)"
     r"(?:[\s_.\-]|$)", re.I)
@@ -848,13 +730,7 @@ def metadaten_aus_name(dateiname: str) -> tuple[int | None, str | None, str | No
 
 def bestimme_sprache(turns: list[Turn], dateiname: str, befund: Befund,
                      vorgabe: str | None = None) -> str:
-    """Legt die Sprache einer Sitzung fest und schreibt den Vorgang in den Befund.
-
-    Reihenfolge, wie bei der Sprecherzuordnung: was jemand gesagt hat, gilt;
-    dann, was im Dateinamen steht; dann geraten; und wenn zu wenig Material da
-    ist, wird nicht geraten, sondern die Standardsprache genommen und das als
-    Warnung vermerkt.
-    """
+    """Legt die Sprache fest, vermerkt es im Befund."""
     texte = [t.text for t in turns]
     code, sicherheit, details = sprachen.erkenne_je_turn(texte)
     befund.sprache_sicherheit = sicherheit
@@ -909,15 +785,7 @@ def lies(
     manuelle_sprecher: dict[str, str] | None = None,
     sprache: str | None = None,
 ) -> list[Sitzung]:
-    """Liest eine Datei zu einer oder mehreren :class:`Sitzung` mit :class:`Befund`.
-
-    Eine Datei war lange genau eine Sitzung. Das stimmt, solange jemand seine
-    Stunden einzeln ablegt, und es stimmt nicht mehr, sobald er ein Jahr in ein
-    Dokument schreibt — genau der Fall, für den dieses Werkzeug gemacht ist.
-    Trägt der Text Sitzungsmarken, wird an ihnen getrennt; trägt er keine,
-    bleibt es bei einer Sitzung, und ``Korpus.lade`` entscheidet dann mit Blick
-    auf den ganzen Bestand, ob gleichmässig segmentiert wird.
-    """
+    """Liest eine Datei zu einer oder mehreren."""
     fmt = erkenne_format(dateiname, inhalt)
     befund = Befund(dateiname=dateiname, format=fmt)
 
@@ -943,15 +811,10 @@ def lies(
         t.idx = i
         t.text = re.sub(r"\s+", " ", t.text).strip()
 
-    # Die Sprache wird vor der Sprecherzuordnung bestimmt, weil die Warnungen
-    # im Befund in der Reihenfolge stehen sollen, in der die Entscheidungen
-    # gefallen sind: erst welche Sprache, dann wer spricht.
+    # Die Sprache wird vor der Sprecherzuordnung bestimmt.
     sprache_code = bestimme_sprache(turns, dateiname, befund, sprache)
 
-    # Die Sprecherzuordnung läuft über die *ganze* Datei und nicht je Abschnitt.
-    # Die Rateregel ("wer weniger redet, ist der Therapeut") wird mit mehr Text
-    # nicht schlechter, und ein Sprecher, der in Sitzung 3 anders heisst als in
-    # Sitzung 4, wäre schlimmer als eine unsichere Zuordnung.
+    # Die Sprecherzuordnung läuft über die *ganze* Datei.
     ordne_sprecher_zu(turns, befund, manuelle_sprecher)
 
     befund.turns = len(turns)
@@ -985,7 +848,7 @@ def lies(
                      nummer=a["nummer"], datum=a["datum"], ist_segment=False)
         for i, a in enumerate(abschnitte)
     ]
-    # Nummern nur dann erfinden, wenn der Text selbst keine genannt hat.
+    # Nummern nur dann erfinden, wenn der Text.
     if all(t.nummer is None for t in sitzungen):
         for i, t in enumerate(sitzungen, start=1):
             t.nummer = i
@@ -998,21 +861,14 @@ def lies(
 
 def _sprache_je_abschnitt(sitzungen: list[Sitzung], befund: Befund,
                           manuell: str | None) -> None:
-    """Bestimmt die Sprache je Abschnitt neu, ohne den Befund vollzuschreiben.
-
-    Ein Klient, der mitten in der Behandlung die Sprache wechselt, soll nicht
-    ein Jahr lang mit einem gemittelten Urteil analysiert werden. Eine Vorgabe
-    von aussen oder aus dem Dateinamen bleibt unangetastet: die hat jemand
-    absichtlich gesetzt.
-    """
+    """Bestimmt die Sprache je Abschnitt neu, ohne."""
     if manuell or befund.sprache_quelle in ("manuell", "dateiname"):
         return
     abweichend = 0
     for s in sitzungen:
         text = " ".join(t.text for t in s.turns)
         code, sicherheit, _ = sprachen.erkenne(text)
-        # erkenne() verweigert unter 25 Wörtern und gibt dann Sicherheit 0
-        # zurück — dann bleibt es beim Urteil über die ganze Datei.
+        # erkenne() verweigert unter 25 Wörtern und gibt.
         if sicherheit > 0:
             s.sprache = code
             if code != befund.sprache:
@@ -1029,19 +885,13 @@ def _sprache_je_abschnitt(sitzungen: list[Sitzung], befund: Befund,
 # ---------------------------------------------------------------------------
 
 def _abschnitte_aus_marken(marken: list[dict], n_turns: int) -> list[dict]:
-    """Waehlt die brauchbaren Marken aus und macht Abschnittsgrenzen daraus.
-
-    Starke Marken schlagen schwache: wer "Sitzung 7" schreibt, meint es, wer
-    eine Linie zieht, vielleicht auch nur Zierde. Schwache Marken kommen nur
-    zum Zug, wenn keine starke da ist.
-    """
+    """Waehlt die brauchbaren Marken aus und macht."""
     for art in ("stark", "schwach"):
         kandidaten = [m for m in marken if m["art"] == art and 0 <= m["turn"] <= n_turns]
         if len(kandidaten) < 2:
             continue
 
-        # Grenzen sind die Turn-Indizes der Marken; eine Marke bei 0 ist der
-        # Kopf des ersten Abschnitts, keine Trennung.
+        # Grenzen sind die Turn-Indizes der Marken.
         grenzen: list[dict] = []
         for m in kandidaten:
             if grenzen and m["turn"] == grenzen[-1]["turn"]:
@@ -1055,7 +905,7 @@ def _abschnitte_aus_marken(marken: list[dict], n_turns: int) -> list[dict]:
             abschnitte.append({"start": start, "ende": ende,
                                "nummer": m["nummer"], "datum": m["datum"]})
         if abschnitte and abschnitte[0]["start"] > 0:
-            # Text vor der ersten Marke gehoert zum ersten Abschnitt.
+            # Text vor der ersten Marke gehoert zum.
             abschnitte[0]["start"] = 0
 
         # Streuner anhaengen statt als Sitzung zaehlen.
@@ -1071,13 +921,7 @@ def _abschnitte_aus_marken(marken: list[dict], n_turns: int) -> list[dict]:
 
 
 def segmentiere(sitzung: "Sitzung", anzahl: int | None = None) -> list["Sitzung"]:
-    """Schneidet eine Sitzung in gleich grosse Stuecke.
-
-    Die Rueckfallebene fuer einen langen Text ohne jede Sitzungsmarke. Die
-    Stuecke heissen "Segment", nicht "Session", und der Befund sagt, dass hier
-    geschnitten und nicht gelesen wurde — ein Segmentwechsel ist eine Stelle im
-    Text, keine Stelle in der Behandlung.
-    """
+    """Schneidet eine Sitzung in gleich grosse Stuecke."""
     turns = sitzung.turns
     if anzahl is None:
         anzahl = SEGMENT_ZIEL
@@ -1110,8 +954,7 @@ def segmentiere(sitzung: "Sitzung", anzahl: int | None = None) -> list["Sitzung"
 def _teilsitzung(quelle: "Sitzung", start: int, ende: int, idx: int,
                  nummer: int | None, datum: str | None,
                  ist_segment: bool) -> "Sitzung":
-    # Turn-Indizes werden je Sitzung neu vergeben, weil alles Spaetere
-    # (Belegstellen, KWIC, Faeden) sie als Adresse innerhalb der Sitzung liest.
+    # Turn-Indizes werden je Sitzung neu vergeben.
     turns = quelle.turns[start:ende]
     for i, t in enumerate(turns):
         t.idx = i
@@ -1142,12 +985,9 @@ def _sitzung_info(s: "Sitzung") -> dict:
 
 
 def sortiere_sitzungen(sitzungen: list[Sitzung]) -> list[Sitzung]:
-    """Chronologisch: Datum vor Nummer vor Dateiname. Nummern werden
-    anschliessend lückenlos neu vergeben, damit die Arc-Achse stimmt."""
+    """Chronologisch nach Datum, dann Nummer."""
     def schluessel(s: Sitzung):
-        # ``quelle_idx`` hält aus einer Datei geschnittene Sitzungen in der
-        # Reihenfolge, in der sie im Text standen — auch wenn keine von ihnen
-        # ein Datum trägt und der Dateiname für alle derselbe ist.
+        # ``quelle_idx`` hält aus einer Datei geschnittene Sitzungen.
         return (s.datum or "9999-99-99",
                 s.nummer if s.nummer is not None else 9999,
                 s.dateiname,

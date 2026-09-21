@@ -32,7 +32,7 @@ def test_satzgrenzen_ignorieren_abkuerzungen():
 
 
 def test_lemma_behaelt_umlaute():
-    # Ein Lemma, das angezeigt wird, darf nicht "fuhlen" heissen.
+    # Ein Lemma, das angezeigt wird, darf nicht.
     assert lemma_grob("fühlte") == "fühlen"
     assert "ä" in lemma_grob("ärgerte") or lemma_grob("ärgerte").startswith("ärger")
 
@@ -131,8 +131,7 @@ def test_klarer_sprung_wird_gefunden():
 
 
 def test_reines_rauschen_liefert_nichts():
-    # Der wichtigste Test hier: bei zwölf Punkten findet jedes Verfahren
-    # irgendetwas. Es darf nur nicht gemeldet werden.
+    # Der wichtigste Test hier:
     werte = [0.50, 0.48, 0.52, 0.49, 0.51, 0.50, 0.47, 0.53, 0.49, 0.51, 0.50, 0.48]
     punkte = arc.wechselpunkte(werte, list(range(1, 13)))
     assert all(p.bayes_faktor >= arc.BF_SCHWELLE for p in punkte)
@@ -234,8 +233,7 @@ def test_export_enthaelt_keinen_transkripttext():
 
 
 def test_alle_zahlen_im_bericht_sind_endlich():
-    # json.dumps(allow_nan=False) fliegt sonst im Browser — und zwar erst
-    # beim seltenen Fall, also nach der Auslieferung.
+    # json.dumps(allow_nan=False) fliegt sonst im Browser
     from pathlib import Path
     proben = Path(__file__).resolve().parents[1] / "samples"
     dateien = [{"name": p.name, "inhalt": p.read_text(encoding="utf-8")}

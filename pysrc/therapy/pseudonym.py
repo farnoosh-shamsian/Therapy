@@ -1,28 +1,4 @@
-"""Pseudonymisierung — vor allem anderen.
-
-Die Reihenfolge ist keine Geschmacksfrage: Namen werden ersetzt, *bevor*
-irgendeine Analyse den Text anfasst. Alles, was danach gezählt, indiziert oder
-exportiert wird, enthält dann nur noch stabile Platzhalter.
-
-Die Zuordnungstabelle (Name → Platzhalter) bleibt ausschliesslich im
-Arbeitsspeicher des Browsers. Sie wird nicht exportiert, nicht gespeichert und
-nicht in den Bericht geschrieben. Wer die Seite neu lädt, hat sie verloren —
-das ist gewollt.
-
-Die Namenserkennung ist bewusst eine *Heuristik mit Bestätigungsschritt*. Eine
-NER wäre hier schlechter, nicht besser: der Therapeut weiss, wer diese Menschen
-sind, die Maschine nicht. Sie schlägt vor, er bestätigt einmal pro Klient.
-
-**Zur Zweisprachigkeit — und das ist die eine Stelle, an der Englisch klar im
-Vorteil ist.** Die deutsche Erkennung kämpft damit, dass alle Substantive
-gross geschrieben sind: Grossschreibung mitten im Satz sagt nur "Substantiv"
-und nicht "Name", und der halbe Aufwand im deutschen Zweig geht dafür drauf,
-gewöhnliche Substantive wieder auszusortieren (Nomenendungen, Artikelprobe,
-Kompositumsprobe). Im Englischen ist Grossschreibung mitten im Satz ein
-Eigennamenhinweis und sonst fast nichts — die Erkennung wird dadurch
-zuverlässiger und die Ausschlusslisten kürzer. Der Bestätigungsschritt bleibt
-trotzdem, aus demselben Grund wie vorher.
-"""
+"""Pseudonymisierung — vor allem anderen."""
 
 from __future__ import annotations
 
@@ -39,10 +15,7 @@ from .lexika_en import funktion as lex_f_en
 from .lexika_en import marker as lex_m_en
 from .tokenize import Token, tokenisiere
 
-# Alles, was in irgendeinem Lexikon steht, ist ein deutsches Wort und damit
-# kein Personenname. Ohne diesen Ausschluss schlägt die Heuristik „kommt nie
-# kleingeschrieben vor“ bei jedem Substantiv an, das zufällig immer am
-# Satzanfang oder als Nomen steht — „Angst“, „Verlustangst“, „Nachbarbüro“.
+# Alles, was in irgendeinem Lexikon steht, ist.
 _LEXIKONWOERTER: set[str] = set()
 for _menge in lex_m.WORTLISTEN.values():
     _LEXIKONWOERTER |= set(_menge)
@@ -56,11 +29,7 @@ _LEXIKONWOERTER |= (lex_emo.VAGER_AFFEKT | lex_emo.KOERPER_AFFEKT
 for _paradigma in lex_f.PRONOMEN.values():
     _LEXIKONWOERTER |= {w.lower() for w in _paradigma}
 
-# Dasselbe für Englisch, in einer eigenen Menge. Getrennt und nicht vereinigt:
-# "Bald", "Gift", "Rat", "Hut", "Bad" und "Mist" sind in der einen Sprache
-# gewöhnliche Wörter und in der anderen nichts davon. Eine gemeinsame Menge
-# würde in beiden Richtungen Namen verschlucken, die die jeweils andere
-# Sprache gar nicht kennt.
+# Dasselbe für Englisch, in einer eigenen Menge.
 _LEXIKONWOERTER_EN: set[str] = set()
 for _menge in lex_m_en.WORTLISTEN.values():
     _LEXIKONWOERTER_EN |= set(_menge)
@@ -78,10 +47,6 @@ del _menge, _paradigma
 # ---------------------------------------------------------------------------
 # Gazetteer
 # ---------------------------------------------------------------------------
-#
-# Kein Anspruch auf Vollständigkeit — das ist ein Wahrscheinlichkeitsschub für
-# die Erkennung, kein Namenslexikon. Fehlende Namen werden über die
-# Grossschreibungs-Heuristik trotzdem gefunden.
 
 VORNAMEN = {
     # weiblich
@@ -126,7 +91,7 @@ NICHT_NAMEN = {
     "herr", "frau", "familie", "arbeit", "beruf", "job", "schule", "uni",
 }
 
-# Typische deutsche Substantivendungen. Wer so endet, ist kein Vorname.
+# Typische deutsche Substantivendungen.
 _NOMEN_ENDUNGEN = (
     "ung", "heit", "keit", "schaft", "tion", "sion", "ismus", "nis", "tum",
     "ling", "chen", "lein", "ei", "ur", "anz", "enz", "ität", "ment",
@@ -166,11 +131,6 @@ VORNAMEN_EN = {
 }
 
 # Grossgeschriebenes, das sicher kein Personenname ist.
-#
-# Deutlich kuerzer als die deutsche Liste, und das ist der Punkt: im
-# Englischen ist ein grossgeschriebenes Wort mitten im Satz fast immer ein
-# Eigenname. Was hier stehen muss, sind die Eigennamen, die keine *Personen*
-# sind - Wochentage, Monate, Orte, Marken, Institutionen.
 NICHT_NAMEN_EN = {
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
     "sunday", "january", "february", "march", "april", "may", "june", "july",
@@ -187,13 +147,10 @@ NICHT_NAMEN_EN = {
     "i", "i'm", "i've", "i'd", "i'll", "ok", "okay", "mr", "mrs", "ms", "dr",
 }
 
-# "Mr Smith", "Mrs. Jones", "Dr Patel" - dieselbe Rolle wie _HERR_FRAU.
+# "Mr Smith", "Mrs.
 _MR_MRS = re.compile(r"\b(mr|mrs|ms|miss|dr|prof)\.?\s+([A-Z][a-z]{2,})")
 
-# Ein grossgeschriebenes Wort direkt hinter einem Determinierer ist auch im
-# Englischen meist kein Personenname. Der Fall ist seltener als im Deutschen,
-# weil englische Substantive klein geschrieben werden - er kommt aber vor,
-# etwa bei betont grossgeschriebenen Woertern im Transkript.
+# Ein grossgeschriebenes Wort direkt hinter einem Determinierer.
 _DETERMINIERER_EN = {
     "the", "a", "an", "this", "that", "these", "those", "my", "your", "his",
     "her", "its", "our", "their", "some", "any", "no", "every", "each",
@@ -202,11 +159,7 @@ _DETERMINIERER_EN = {
 
 
 
-# Ein grossgeschriebenes Wort direkt hinter einem Determinierer oder Quantor
-# ist ein gewöhnliches Substantiv: „nichts Besonderes“, „so eine Art“, „das
-# Schlimmste“. Personennamen stehen im Deutschen normalerweise ohne Artikel.
-# Der süddeutsche Fall („die Anna“) kostet uns dabei einen Treffer — billiger
-# als zwanzig Substantive in der Vorschlagsliste.
+# Ein grossgeschriebenes Wort direkt hinter einem Determinierer.
 _DETERMINIERER = {
     "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem",
     "einer", "eines", "kein", "keine", "keinen", "keinem", "keiner", "keines",
@@ -245,19 +198,7 @@ class Namenskandidat:
 
 def finde_namen(texte: list[str], min_haeufigkeit: int = 1,
                 sprache: str = sprachen.STANDARD) -> list[Namenskandidat]:
-    """Sucht Personennamen-Kandidaten über mehrere Texte hinweg.
-
-    Rückgabe ist nach Sicherheit sortiert und dafür gedacht, dem Therapeuten
-    zur Bestätigung vorgelegt zu werden — nicht dafür, ungeprüft angewandt zu
-    werden.
-
-    ``sprache`` steuert, welcher der beiden Zweige gilt. Für ein gemischtes
-    Korpus ruft ``report.py`` die Funktion je Sprache einmal auf und führt die
-    Vorschläge zusammen: ein gemeinsamer Durchgang über beide Sprachen würde
-    den Sprachen ihre jeweiligen Substantive gegenseitig als Namen
-    unterschieben — "Rat", "Gift", "Bald" und "Hut" sind in der einen Sprache
-    gewöhnliche Wörter und in der anderen nichts davon.
-    """
+    """Sucht Personennamen-Kandidaten über mehrere Texte hinweg."""
     englisch = sprache == "en"
     vornamen = VORNAMEN_EN if englisch else VORNAMEN
     nicht_namen = NICHT_NAMEN_EN if englisch else NICHT_NAMEN
@@ -315,23 +256,17 @@ def finde_namen(texte: list[str], min_haeufigkeit: int = 1,
                 "follows an honorific (Mr/Mrs/Dr)" if englisch
                 else "follows an honorific (Herr/Frau)")
         elif wort in mit_artikel:
-            # Stand mindestens einmal hinter einem Artikel → Substantiv.
+            # Stand mindestens einmal hinter einem Artikel →.
             continue
         elif wort in lexikonwoerter or (not englisch
                                         and _ist_bekanntes_kompositum(wort)):
-            # Steht in einem Lexikon oder enthält ein Lexikonwort als
-            # Kompositumsteil: gewöhnliches Substantiv, kein Name.
+            # Steht im Lexikon: kein Name.
             continue
         elif englisch:
-            # Hier zahlt sich die englische Kleinschreibung der Substantive
-            # aus: ein unbekanntes, mitten im Satz grossgeschriebenes Wort ist
-            # im Englischen ein Eigennamenhinweis und nicht bloss ein
-            # Substantivhinweis. Deshalb 0.6 statt der 0.4, mit denen dasselbe
-            # Signal auf der deutschen Seite bewertet wird.
+            # Englische Kleinschreibung hilft hier.
             sicherheit, grund = 0.6, "capitalised mid-sentence, not a known word"
         elif wort not in klein_gesehen:
-            # Kommt nie kleingeschrieben vor → kein gewöhnliches Substantiv?
-            # Schwaches Signal, deshalb niedrige Sicherheit.
+            # Kommt nie kleingeschrieben vor → kein gewöhnliches.
             sicherheit, grund = 0.4, "always capitalised, not a known word"
         else:
             continue
@@ -348,11 +283,7 @@ def finde_namen(texte: list[str], min_haeufigkeit: int = 1,
 
 
 def _ist_bekanntes_kompositum(wort: str) -> bool:
-    """„Verlustangst“, „Nachbarbüro“ — endet auf ein bekanntes deutsches Wort.
-
-    Der Rechtskopf entscheidet im Deutschen über die Wortart. Wenn er ein
-    Lexikonwort ist, ist das Ganze ein Substantiv und kein Nachname.
-    """
+    """„Verlustangst“, „Nachbarbüro“."""
     if len(wort) < 8:
         return False
     return any(len(kopf) >= 4 and wort.endswith(kopf) and wort != kopf
@@ -374,7 +305,7 @@ def _ausschnitt(text: str, tok: Token, breite: int = 45) -> str:
 def _beziehung_im_umfeld(wort_tokens: list[Token], i: int,
                          begriffe: set[str] | None = None,
                          fenster: int = 4) -> str | None:
-    """„meine Schwester Anna", „my sister Anna" — Rolle mitnehmen."""
+    """„meine Schwester Anna", „my sister Anna"."""
     begriffe = BEZIEHUNGS_BEGRIFFE if begriffe is None else begriffe
     for j in range(max(0, i - fenster), min(len(wort_tokens), i + fenster + 1)):
         if j == i:
@@ -394,13 +325,14 @@ _PLATZHALTER_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 class Pseudonymisierer:
     """Stabile Name→Platzhalter-Abbildung über eine ganze Fallgeschichte.
 
-    Stabil heisst: derselbe Name bekommt in Sitzung 1 und Sitzung 12 denselben
-    Platzhalter, sonst wäre das Soziogramm wertlos. Die Reihenfolge der
-    Vergabe richtet sich nach der ersten Nennung.
+    Mit ``ersetzen=False`` bleibt jeder Name stehen: registrierte Namen bilden
+    dann auf sich selbst ab, ``ersetze`` rührt den Text nicht an. Erkannt und
+    registriert wird trotzdem, denn das Soziogramm braucht die Personenliste.
     """
 
-    def __init__(self, praefix: str = "Person") -> None:
+    def __init__(self, praefix: str = "Person", ersetzen: bool = True) -> None:
         self.praefix = praefix
+        self.ersetzen = ersetzen
         self._zu_platzhalter: dict[str, str] = {}
         self._zu_name: dict[str, str] = {}
         self._zaehler = 0
@@ -412,8 +344,12 @@ class Pseudonymisierer:
         if not schluessel:
             return name
         if schluessel not in self._zu_platzhalter:
-            platz = f"{self.praefix} {self._buchstabe(self._zaehler)}"
-            self._zaehler += 1
+            if self.ersetzen:
+                platz = f"{self.praefix} {self._buchstabe(self._zaehler)}"
+                self._zaehler += 1
+            else:
+                # Klarnamen: der Name ist sein eigener „Platzhalter“.
+                platz = name.strip()
             self._zu_platzhalter[schluessel] = platz
             self._zu_name[platz] = name.strip()
         platz = self._zu_platzhalter[schluessel]
@@ -432,8 +368,8 @@ class Pseudonymisierer:
 
     # -- Anwendung -------------------------------------------------------
     def ersetze(self, text: str) -> str:
-        """Ersetzt alle registrierten Namen im Text, inkl. Genitiv-s."""
-        if not self._zu_platzhalter:
+        """Ersetzt alle registrierten Namen im Text, inkl."""
+        if not self.ersetzen or not self._zu_platzhalter:
             return text
         muster = self._muster()
         if muster is None:
@@ -461,7 +397,7 @@ class Pseudonymisierer:
         return list(self._zu_name)
 
     def klarname(self, platzhalter: str) -> str | None:
-        """Nur für die Anzeige im Browser des Therapeuten. Nie im Export."""
+        """Nur für die Anzeige im Browser des."""
         return self._zu_name.get(platzhalter)
 
     def tabelle_fuer_anzeige(self) -> list[dict]:
@@ -469,12 +405,14 @@ class Pseudonymisierer:
                 for p, n in self._zu_name.items()]
 
     def zusammenfassung(self) -> dict:
-        """Was in den Bericht darf: Anzahl, keine Namen."""
-        return {"ersetzt": len(self._zu_name), "praefix": self.praefix}
+        """Was in den Bericht darf: Zahlen, keine Namen."""
+        return {"ersetzt": len(self._zu_name) if self.ersetzen else 0,
+                "praefix": self.praefix,
+                "modus": "pseudonyme" if self.ersetzen else "klarnamen"}
 
 
 def pseudonymisiere_sitzungen(sitzungen, pseudo: Pseudonymisierer) -> int:
-    """Wendet die Ersetzung auf alle Turns an. Gibt die Zahl der Änderungen zurück."""
+    """Ersetzt Namen in allen Turns."""
     geaendert = 0
     for sitzung in sitzungen:
         for turn in sitzung.turns:

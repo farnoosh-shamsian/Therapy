@@ -1,17 +1,4 @@
-/* Thera.py — charts.
- *
- * Hand-rolled SVG, no chart library. Two reasons, both of which outweigh the
- * convenience:
- *
- *  1. A library from a CDN is a network call. The entire promise of this tool
- *     is that the page works with the network switched off.
- *  2. Every point here has to be clickable and lead back into the transcript.
- *     Bolting that onto someone else's render pipeline costs more than drawing
- *     the charts by hand.
- *
- * Every function returns SVG markup as a string. Colours come from CSS
- * variables so that light and dark mode need no special case.
- */
+/* Hand-rolled SVG. No chart library. */
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -38,14 +25,10 @@ export function prozent(n, stellen = 0) {
 export { zahl };
 
 /* ------------------------------------------------------------------ */
-/* Line chart across sessions                                          */
+/* Line chart across sessions. */
 /* ------------------------------------------------------------------ */
 
-/**
- * @param {number[]} werte
- * @param {number[]} nummern  session numbers for the x axis
- * @param {object}   opt      { hoehe, breite, wechselpunkte, glatt, klickbar }
- */
+/* @param {number[]} werte @param {number[]} nummern session numbers for the x axis @param {object} opt { hoehe, breite, wechselpunkte, glatt, klickbar } */
 export function verlauf(werte, nummern, opt = {}) {
   const B = opt.breite ?? 560;
   const H = opt.hoehe ?? 150;
@@ -55,7 +38,7 @@ export function verlauf(werte, nummern, opt = {}) {
   const min = Math.min(...werte);
   const max = Math.max(...werte);
   const spanne = (max - min) || 1;
-  // A little air above and below, or the line sticks to the frame.
+  // Air above and below the extremes.
   const y0 = min - spanne * 0.12;
   const y1 = max + spanne * 0.12;
 
@@ -67,17 +50,13 @@ export function verlauf(werte, nummern, opt = {}) {
 
   let teile = [`<svg class="chart" viewBox="0 0 ${B} ${H}" role="img" aria-label="Trajectory across sessions">`];
 
-  // Grid: two lines only. More grid means less curve.
+  // Grid behind the line.
   for (const v of [min, max]) {
     teile.push(`<line class="gitter" x1="${pad.l}" y1="${py(v)}" x2="${B - pad.r}" y2="${py(v)}"/>`);
     teile.push(`<text class="achse" x="${pad.l - 6}" y="${py(v) + 3}" text-anchor="end">${esc(zahl(v, 2))}</text>`);
   }
 
-  // Changepoints go behind the line so the line stays readable. A marked
-  // rule and a label, no shaded region: with two or three changepoints the
-  // shaded regions overlap all the way to the right edge and colour in half
-  // the chart — then the background looks more important than the curve, and
-  // the curve is the point.
+  // Changepoints behind the line, as rules.
   for (const wp of opt.wechselpunkte ?? []) {
     const i = wp.position;
     if (i < 0 || i >= werte.length) continue;
@@ -100,7 +79,7 @@ export function verlauf(werte, nummern, opt = {}) {
     teile.push(`<circle${attrs} cx="${px(i)}" cy="${py(v)}" r="3.5"><title>Session ${esc(nummern[i] ?? i + 1)}: ${esc(zahl(v, 3))}</title></circle>`);
   });
 
-  // x axis: do not label every session, or it turns to mush.
+  // x axis: session numbers.
   const schritt = Math.max(1, Math.ceil(werte.length / 8));
   nummern.forEach((nr, i) => {
     if (i % schritt !== 0 && i !== werte.length - 1) return;
@@ -112,7 +91,7 @@ export function verlauf(werte, nummern, opt = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Sparkline                                                           */
+/* Sparkline. */
 /* ------------------------------------------------------------------ */
 
 export function sparkline(werte, opt = {}) {
@@ -131,10 +110,10 @@ export function sparkline(werte, opt = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Bars                                                                */
+/* Bars. */
 /* ------------------------------------------------------------------ */
 
-/** @param {{label:string, wert:number, zusatz?:string, schluessel?:string}[]} zeilen */
+/* @param {{label:string, wert:number, zusatz?:string, schluessel?:string}[]} zeilen */
 export function balken(zeilen, opt = {}) {
   if (!zeilen.length) return '<p class="leer">Nothing to show.</p>';
   const max = opt.max ?? Math.max(...zeilen.map((z) => Math.abs(z.wert)), 1e-9);
@@ -153,7 +132,7 @@ export function balken(zeilen, opt = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Share bar (two or more parts)                                       */
+/* Share bar (two or more parts). */
 /* ------------------------------------------------------------------ */
 
 export function anteile(teile, opt = {}) {
@@ -175,10 +154,10 @@ export function anteile(teile, opt = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Affect through one session                                          */
+/* Affect through one session. */
 /* ------------------------------------------------------------------ */
 
-/** @param {[number,number,number][]} punkte  [turnIndex, words, affectRate] */
+/* @param {[number,number,number][]} punkte [turnIndex, words, affectRate] */
 export function sitzungsverlauf(punkte, opt = {}) {
   const B = opt.breite ?? 560, H = opt.hoehe ?? 120;
   const pad = { l: 34, r: 10, o: 12, u: 22 };
@@ -205,14 +184,10 @@ export function sitzungsverlauf(punkte, opt = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Sociogram                                                           */
+/* Sociogram. */
 /* ------------------------------------------------------------------ */
 
-/**
- * Force-directed layout, deterministic: same input, same picture. A random
- * start would produce a different web on every redraw, and then you end up
- * comparing pictures instead of data.
- */
+/* Force-directed layout, deterministic. */
 export function soziogramm(knoten, kanten, opt = {}) {
   const B = opt.breite ?? 560, H = opt.hoehe ?? 360;
   if (!knoten.length) return leer(B, H, 'No people detected');
@@ -274,14 +249,14 @@ export function soziogramm(knoten, kanten, opt = {}) {
 }
 
 function temperaturfarbe(t) {
-  // -1 cold (blue) through 0 neutral (grey) to +1 warm (amber).
+  // -1 cold, 0 neutral, +1 warm.
   const v = Math.max(-1, Math.min(1, t || 0));
   if (v < 0) return `color-mix(in oklab, var(--kalt) ${Math.round(-v * 80)}%, var(--neutral))`;
   return `color-mix(in oklab, var(--warm) ${Math.round(v * 80)}%, var(--neutral))`;
 }
 
 /* ------------------------------------------------------------------ */
-/* People over time (who arrives, who fades)                           */
+/* People over time (who arrives, who fades). */
 /* ------------------------------------------------------------------ */
 
 export function personenverlauf(reihen, nummern, opt = {}) {

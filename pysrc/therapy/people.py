@@ -1,15 +1,4 @@
-"""Wer im Raum ist — das Soziogramm.
-
-Wer taucht in der Erzählung auf, wer verschwindet, und mit welcher Temperatur
-wird über wen gesprochen. Personen sind hier Platzhalter aus
-:mod:`therapy.pseudonym` plus Beziehungsbegriffe („meine Mutter“, „mein
-Chef“). Die Temperatur kommt aus dem Affektvokabular im unmittelbaren Umfeld
-der Nennung — nicht aus einem Sentimentmodell, das hier ohnehin die Zahl wäre,
-der man am wenigsten trauen sollte.
-
-Kanten entstehen aus Ko-Nennung im selben Beitrag: wer kommt mit wem zusammen
-vor. Das ist eine schwache Definition von Beziehung, aber eine ehrliche.
-"""
+"""Wer im Raum ist — das Soziogramm."""
 
 from __future__ import annotations
 
@@ -37,7 +26,7 @@ class Person:
 
     @property
     def temperatur(self) -> float:
-        """Mittlere Valenz des Affektumfelds, -1 bis +1. 0 = gemischt oder leer."""
+        """Mittlere Valenz des Affektumfelds, -1 bis +1."""
         return self.valenz_summe / self.valenz_n if self.valenz_n else 0.0
 
     def als_dict(self) -> dict:
@@ -55,12 +44,8 @@ class Person:
 
 def soziogramm(sitzungen: list[Sitzung], platzhalter: list[str],
                nur_sprecher: str = KLIENT) -> dict:
-    """Baut Knoten und Kanten über alle Sitzungen eines Klienten."""
-    # Beziehungsbegriffe aus *allen* vorkommenden Sprachen. Ein Klient, der
-    # von Deutsch auf Englisch wechselt, spricht danach von "my mother" statt
-    # von "meine Mutter" — wäre nur eine Liste aktiv, verschwände die Person
-    # mitten in der Fallgeschichte aus dem Soziogramm, und genau das Kommen
-    # und Gehen ist hier die interessante Zeile.
+    """Baut Knoten und Kanten über alle Sitzungen."""
+    # Beziehungsbegriffe aus *allen* vorkommenden Sprachen.
     gesucht: dict[str, str] = {}
     codes = {getattr(s, "sprache", sprachen.STANDARD) for s in sitzungen}
     for code in codes or {sprachen.STANDARD}:
@@ -86,8 +71,7 @@ def soziogramm(sitzungen: list[Sitzung], platzhalter: list[str],
             im_turn: set[str] = set()
 
             for i, form in enumerate(formen):
-                # Platzhalter sind mehrteilig („Person A“) — erst den Zweiwort-
-                # Fall prüfen, sonst findet man nur das Wort „person“.
+                # Platzhalter sind mehrteilig („Person A“)
                 name = None
                 if i + 1 < len(formen) and f"{form} {formen[i+1]}" in gesucht:
                     name = f"{form} {formen[i+1]}"
@@ -148,7 +132,7 @@ def soziogramm(sitzungen: list[Sitzung], platzhalter: list[str],
 
 
 def verlauf(personen: list[dict], sitzungen: list[int]) -> list[dict]:
-    """Nennungen pro Person und Sitzung als Reihe — wer kommt, wer geht."""
+    """Nennungen pro Person und Sitzung als Reihe."""
     reihen = []
     for p in personen:
         pro = p.get("proSitzung", {})
@@ -161,11 +145,7 @@ def verlauf(personen: list[dict], sitzungen: list[int]) -> list[dict]:
 
 
 def eintritte_und_abgaenge(reihen: list[dict], sitzungen: list[int]) -> dict:
-    """Wann taucht jemand zum ersten Mal auf, wann zum letzten Mal.
-
-    Die klinisch interessante Zeile ist selten „X wird oft genannt“, sondern
-    „X kommt ab Sitzung 7 vor“ oder „Y verschwindet nach Sitzung 4“.
-    """
+    """Wann taucht jemand zum ersten Mal auf."""
     eintritt, abgang = [], []
     for reihe in reihen:
         werte = reihe["werte"]

@@ -1,13 +1,4 @@
-"""Handgeprüfte deutsche Sätze, ein Block pro Marker.
-
-Diese Datei ist die eigentliche Dokumentation der Marker. Jeder Satz hier
-wurde von Hand daraufhin angesehen, ob der Marker treffen *soll* — und
-mindestens ein Gegenbeispiel pro Marker steht dabei, weil eine Liste, die nur
-Treffer enthält, nichts beweist.
-
-Wo ein Marker bewusst ungenau ist, steht das als Test mit ``xfail``-Kommentar
-und nicht als stiller Fehler.
-"""
+"""Handgeprüfte deutsche Sätze, ein Block pro Marker."""
 
 from __future__ import annotations
 
@@ -32,7 +23,7 @@ def werte(*saetze: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# man vs. ich
+# man vs.
 # ---------------------------------------------------------------------------
 
 def test_man_wird_gezaehlt():
@@ -40,7 +31,7 @@ def test_man_wird_gezaehlt():
 
 
 def test_man_nicht_in_zusammensetzungen():
-    # "manchmal" und "manche" dürfen nicht als "man" durchgehen.
+    # "manchmal" und "manche" dürfen nicht als "man".
     assert zaehle("man", "Manchmal ist das so, manche sagen das auch.") == 0
 
 
@@ -66,8 +57,7 @@ def test_konjunktiv_eindeutige_umlautformen():
 
 
 def test_konjunktiv_ambige_formen_getrennt():
-    # "sollte" ist formgleich mit dem Präteritum und darf die Hauptzahl nicht
-    # aufblähen.
+    # "sollte": formgleich mit Präteritum.
     sm = analysiere_sitzung(_sitzung("Ich sollte das machen."))[KLIENT]
     assert sm.zaehler.get("konjunktiv2", 0) == 0
     assert sm.zaehler.get("konjunktiv2_ambig", 0) == 1
@@ -105,9 +95,7 @@ def test_absolutismen_stufe_eins():
 
 
 def test_umgangssprachliche_verstaerker_sind_ausgeschlossen():
-    # Der wichtigste Einzeltest dieser Datei: die englische Vorlage würde
-    # "totally/completely" mitzählen, im gesprochenen Deutsch ist das
-    # Umgangssprache und kein absolutistisches Denken.
+    # Der wichtigste Einzeltest dieser Datei:
     sm = analysiere_sitzung(_sitzung("Das war total nett und voll gut, echt ganz okay."))[KLIENT]
     assert sm.zaehler.get("absolut1", 0) == 0
     assert sm.zaehler.get("absolut2", 0) == 0
@@ -129,7 +117,7 @@ def test_resignative_partikel():
 
 
 def test_ja_am_satzanfang_ist_keine_modalpartikel():
-    # "Ja." als Antwort darf nicht als insistierende Partikel zählen.
+    # "Ja." als Antwort darf nicht als insistierende.
     assert zaehle("partikel_insistierend", "Ja. Genau.") == 0
     assert zaehle("partikel_insistierend", "Das ist ja furchtbar.") == 1
 
@@ -199,7 +187,7 @@ def test_perfekt_wird_als_vergangenheit_erkannt():
 # ---------------------------------------------------------------------------
 
 def test_metapher_braucht_mentalen_bezug():
-    # Ohne Affekt- oder Selbstbezug im Satz zählt Wettervokabular nicht.
+    # Ohne Affekt- oder Selbstbezug im Satz zählt.
     ohne = analysiere_sitzung(_sitzung("Am Dienstag war Gewitter und Regen."))[KLIENT]
     assert sum(ohne.metapher_domaenen.values()) == 0
     mit = analysiere_sitzung(_sitzung("Ich fühle mich wie unter einer grauen Wolke."))[KLIENT]

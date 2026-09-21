@@ -9,17 +9,7 @@
       content="Distant reading for German and English psychotherapy transcripts. Runs entirely in the browser; nothing is uploaded."
     />
     <meta name="robots" content="noindex, nofollow" />
-    <!--
-  Content-Security-Policy as a second line of defence behind the architecture.
-  connect-src 'self' permits loading our own files and the Pyodide runtime but
-  forbids a connection to any other destination. An accidental fetch() to a
-  foreign server would be blocked by the browser — including later, if someone
-  edits this code carelessly.
-
-  jsdelivr appears here only for the CDN case. Vendor Pyodide into
-  vendor/pyodide/ (see the README) and both jsdelivr entries can be deleted;
-  the page then makes literally zero foreign requests.
--->
+    <!-- CSP: a second line of defence. -->
     <meta
       http-equiv="Content-Security-Policy"
       content="
@@ -72,7 +62,7 @@
       <span class="trenner"></span>
       <button
         id="export"
-        title="Write the figures to a local JSON file. No real names, no transcript text."
+        title="Write the figures to a JSON file on this machine. No names, no filenames, no transcript lines."
       >
         Export
       </button>
@@ -115,12 +105,24 @@ Client: Hard. I kept thinking about it.
           Without one, a long text is cut into equal segments instead.
         </p>
 
+        <p class="anonymwahl">
+          <label>
+            <input type="checkbox" id="anonymisieren" checked />
+            <span class="anonymwahl-titel">Replace names with placeholders</span>
+          </label>
+          <span class="anonymwahl-hinweis" id="anonymwahl-hinweis">
+            Every name you confirm becomes “Person A” before anything is
+            computed. Switch this off if the transcripts are already
+            de-identified, or if the consent and the data protection are
+            settled elsewhere and you would rather read real names.
+          </span>
+        </p>
+
         <p class="ablage-knoepfe">
           <button type="button" id="einfuegen-los" class="knopf">
             Analyse this text
           </button>
-          <!-- A <label for=…> rather than an onclick attribute: inline scripts are
-           forbidden by the CSP above, and that should stay true. -->
+          <!-- A <label>, because inline scripts stay forbidden. -->
           <input
             type="file"
             id="dateiwahl"
@@ -141,9 +143,7 @@ Client: Hard. I kept thinking about it.
         </p>
       </div>
 
-      <!-- Der Datenschutzsatz ist die eine Aussage, die niemand übersehen darf:
-           er steht direkt unter der Ablage, in zwei Zeilen, und nicht in einem
-           Absatz, den man wegscrollt. Alles Weitere ist aufklappbar. -->
+      <!-- Der Datenschutzsatz: direkt unter der Ablage. -->
       <p class="datenzeile">
         <strong>Nothing is uploaded, nothing is stored.</strong> Your
         transcripts are read and analysed inside this tab — switch off your
@@ -250,7 +250,7 @@ Client: Hard. I kept thinking about it.
     <dialog id="namensdialog">
       <form method="dialog" class="dialog-inhalt">
         <h2>Who are these people?</h2>
-        <p>
+        <p id="namensdialog-text">
           These look like personal names, but only you know which of them are
           people. Each one you confirm is replaced by a stable placeholder
           (“Person A”) before anything is computed; the mapping stays in this

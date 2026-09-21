@@ -1,22 +1,11 @@
-"""Dialogue patterns — question types and backchannels, English.
-
-Regular expressions against the lowercased turn text. Used by ``dialogue.py``
-for question typing and backchannel detection (``mhm``, ``right``) —
-backchannels count towards word totals but not as turns.
-
-The open/closed split is confidence B and is labelled as such in the interface:
-it is made morphologically (wh-question vs. subject-auxiliary inversion), not
-by content. Everyone believes they ask open questions.
-"""
+"""Dialogue patterns."""
 
 from __future__ import annotations
 
 MUSTER: dict[str, list[str]] = {
-    # ------------------------------------------------------------------
-    # Offene Fragen: W-Frage oder ausdrückliche Einladung.
-    # "why" steht bewusst dabei, obwohl es klinisch oft als geschlossene
-    # Rechtfertigungsfrage wirkt — die Unterscheidung trifft der Therapeut,
-    # nicht das Werkzeug. Dieselbe Entscheidung wie beim deutschen "warum".
+    # ---------------------------------------------------------------------------
+    # Offene Fragen:
+    # ---------------------------------------------------------------------------
     "frage_offen": [
         r"(^|[.?!]\s*)(what|how|when|where|why|who|which|in what way|to what extent)\b[^?]*\?",
         r"\btell me (about|more|what)\b", r"\bdescribe\b",
@@ -26,8 +15,9 @@ MUSTER: dict[str, list[str]] = {
         r"\bwhat does that do to you\b", r"\bwhere do you feel (that|it)\b",
         r"\bwhat was that like\b", r"\band then\?", r"\bgo on\b",
     ],
-    # ------------------------------------------------------------------
-    # Geschlossene Fragen: Verberstfrage, Tag-Frage, Ja/Nein-Einladung.
+    # ---------------------------------------------------------------------------
+    # Geschlossene Fragen:
+    # ---------------------------------------------------------------------------
     "frage_geschlossen": [
         r"(^|[.?!]\s*)(is|are|was|were|do|does|did|have|has|had|can|could|will|would|shall|should|may|might|must)\s+(you|it|that|this|he|she|they|we|there)\b[^?]*\?",
         r"\b(or)\?\s*$", r"\bisn'?t it\?", r"\bdidn'?t (you|it|they)\?",

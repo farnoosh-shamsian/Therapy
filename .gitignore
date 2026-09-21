@@ -1,17 +1,81 @@
+# ---------------------------------------------------------------------------
+# Never, under any circumstances, real client material.
+# ---------------------------------------------------------------------------
+#
+# This block is first because it is the only one that matters. Everything else
+# here is housekeeping; this is the rule the repository exists under. It is
+# deliberately wider than it needs to be: the cost of ignoring a file you did
+# want is one `git add -f`, and the cost of the other mistake is not
+# recoverable once it is pushed.
+
+transcripts/
+transkripte/
+sitzungen/
+sessions/
+*.real.*
+
+# The formats a documentation assistant exports a session in. There is no
+# reason for one of these to be in this repository, and every reason for a
+# stray one not to be committed by accident.
+*.docx
+*.doc
+*.pdf
+*.vtt
+*.srt
+!samples/*.vtt
+!samples/*.srt
+
+# What this tool writes *about* transcripts. The export carries no names and no
+# transcript lines (see `Korpus.export`), but it is still a year of one
+# person's therapy in numbers, and it belongs on your machine and not here.
+therapy-analysis-*.json
+/report.json
+/bericht.json
+/befund.json
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
-.pytest_cache/
+*.pyd
+*.egg
 *.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
 build/
 dist/
 .venv/
 venv/
+.python-version
 
-# Vendored Pyodide runtime — optional, large, and fetched by the user.
-# See the README section "With no foreign server at all".
+# ---------------------------------------------------------------------------
+# Vendored Pyodide runtime — optional, large, fetched by the user.
+# ---------------------------------------------------------------------------
+# See "One foreign request" in the README. The tarball is ignored too: the
+# README tells you to curl it into this directory, and 200 MB of runtime in a
+# repository whose whole point is that it has no build step would be a joke.
 vendor/
+pyodide*.tar.bz2
+pyodide*.tar.gz
 
-# Never, under any circumstances, real transcripts.
-transcripts/
-transkripte/
-*.real.txt
+# ---------------------------------------------------------------------------
+# Editors, tooling, operating systems
+# ---------------------------------------------------------------------------
+.claude/settings.local.json
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.env
+.env.*

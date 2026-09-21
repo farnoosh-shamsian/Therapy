@@ -1,26 +1,4 @@
-/* Thera.py — bootstrap, files, routing.
- *
- * What does NOT happen in this file is the whole point of it:
- * there is no fetch(), no XMLHttpRequest, no sendBeacon and no form that
- * carries transcript content anywhere. Files are read with FileReader, handed
- * to Pyodide, and stay in this tab's memory. The only network calls the whole
- * application makes are:
- *
- *   – loading its own static files (HTML, JS, CSS, .py)
- *   – loading the Pyodide runtime
- *   – loading the synthetic samples from samples/, and only on a click
- *
- * All three fetch files; none of them ever sends one. If Pyodide is vendored
- * into vendor/pyodide/, the second one disappears too and the page needs no
- * foreign server at all.
- *
- * The interface is English. The material is German or English, decided per
- * session; everything quoted back out of a transcript stays in the language it
- * was spoken in, because translating an example would destroy the marker it
- * illustrates. Which markers exist, what they are called and what caveat they
- * carry all come from the report, keyed by that language — this file never
- * names a marker.
- */
+/* Bootstrap, files, routing. Sends nothing anywhere. */
 
 import * as V from './views.js';
 import * as C from './charts.js';
@@ -29,10 +7,7 @@ const PYODIDE_VERSION = 'v0.26.4';
 const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/${PYODIDE_VERSION}/full/`;
 const PYODIDE_LOKAL = 'vendor/pyodide/';
 
-/* Order matters only in that every file must exist before the package is
- * imported; Python resolves the rest itself. Both language packs are written
- * into the runtime, but `sprachen.paket()` imports one only when a session in
- * that language actually turns up. */
+/* Every file must exist before import. */
 const PY_DATEIEN = [
   'therapy/__init__.py',
   'therapy/tokenize.py',
@@ -68,18 +43,18 @@ const App = {
   ansicht: 'befund',
   klientId: null,
   sitzungIdx: 0,
-  // Das zuletzt geplottete Wort, damit die Kurve einen Ansichtswechsel
-  // übersteht. Der Bericht trägt sie nicht mit: er wäre sonst um den ganzen
-  // Wortschatz grösser, für eine Kurve, die man meistens nicht anschaut.
+  // Letztes Wort überlebt den Ansichtswechsel.
   wort: null,
   bereit: false,
+  // Der Schalter über der Ablage, beim Einlesen gelesen. Nie gespeichert.
+  anonymisieren: true,
 };
 
 const $ = (s, wurzel = document) => wurzel.querySelector(s);
 const $$ = (s, wurzel = document) => [...wurzel.querySelectorAll(s)];
 
 /* ------------------------------------------------------------------ */
-/* Loading state                                                       */
+/* Loading state. */
 /* ------------------------------------------------------------------ */
 
 function status(text, fortschritt) {
@@ -108,8 +83,7 @@ async function existiert(url) {
 }
 
 async function ladePyodide() {
-  // The first start is slow (~10 MB of WebAssembly). Saying so plainly beats a
-  // spinner that pretends things are about to happen.
+  // First start is slow: say so.
   const lokal = await existiert(PYODIDE_LOKAL + 'pyodide.js');
   const basis = lokal ? PYODIDE_LOKAL : PYODIDE_CDN;
   status(lokal
@@ -147,20 +121,18 @@ async function ladePyodide() {
   $('#version').textContent = 'v' + App.ot.VERSION;
 }
 
-/* Lässt den Browser einmal zeichnen, bevor der Hauptthread blockiert wird.
- * Ein Timer und kein requestAnimationFrame: in einem Hintergrundtab feuert rAF
- * nicht, und die Auswertung stünde dann still, bis jemand hinschaut. */
+/* Einmal zeichnen lassen, dann blockieren. */
 function atemzug() {
   return new Promise((fertig) => setTimeout(fertig, 0));
 }
 
-/* The bridge: every Python function returns a JSON string. */
+/* Bridge: every Python function returns JSON. */
 function py(name, ...args) {
   return JSON.parse(App.ot[name](...args));
 }
 
 /* ------------------------------------------------------------------ */
-/* Files                                                               */
+/* Files. */
 /* ------------------------------------------------------------------ */
 
 function liesDatei(datei) {
@@ -168,8 +140,7 @@ function liesDatei(datei) {
     const leser = new FileReader();
     leser.onerror = () => fehler(leser.error);
     leser.onload = () => fertig({ name: datei.name, inhalt: leser.result });
-    // .docx is a ZIP and has to be read as bytes; it is passed through as a
-    // latin-1 string so the Python side gets the bytes back unchanged.
+    // .docx is a ZIP: read bytes.
     if (datei.name.toLowerCase().endsWith('.docx')) {
       leser.readAsBinaryString(datei);
     } else {
@@ -187,8 +158,10 @@ async function verarbeite(dateien) {
   const inhalte = [];
   for (const datei of dateien) inhalte.push(await liesDatei(datei));
 
+  App.anonymisieren = $('#anonymisieren').checked;
   App.befunde = py('lade', JSON.stringify(inhalte));
   status('Looking for names …');
+  // Auch ohne Ersetzung: das Soziogramm braucht die Personenliste.
   const kandidaten = py('namensvorschlaege');
   statusFertig();
 
@@ -200,10 +173,7 @@ async function verarbeite(dateien) {
   }
 }
 
-/* Eingefügter Text geht denselben Weg wie eine Datei — er *ist* eine Datei,
- * nur ohne Dateisystem. Zwei Pfade nebeneinander wären zwei Pfade, die
- * auseinanderlaufen. Der Dateiname ist frei erfunden und dient nur dazu, dass
- * der Befund eine Zeile bekommt, die man lesen kann. */
+/* Eingefügter Text geht den Dateiweg. */
 async function verarbeiteEingefuegtes() {
   const feld = $('#einfuegen');
   const text = feld.value.trim();
@@ -215,18 +185,15 @@ async function verarbeiteEingefuegtes() {
 }
 
 async function analysiere(bestaetigte) {
-  status('Replacing names …');
-  py('pseudonymisiere', JSON.stringify(bestaetigte));
+  status(App.anonymisieren ? 'Replacing names …' : 'Noting who is who …');
+  py('pseudonymisiere', JSON.stringify(bestaetigte), App.anonymisieren);
   status('Analysing — a year of transcripts takes a moment …');
-  // Breathing room so the loading state is actually painted before Pyodide
-  // blocks the main thread for a few seconds. Deliberately a timer and not
-  // requestAnimationFrame: rAF does not fire in a hidden tab, so switching
-  // away right after confirming the names stalled the analysis until you
-  // came back and looked at it.
+  // Let the loading state paint first.
   await atemzug();
   App.bericht = py('bericht');
   statusFertig();
 
+  $('#export').title = App.anonymisieren ? EXPORT_TITEL.ein : EXPORT_TITEL.aus;
   App.klientId = App.bericht.klienten[0]?.id ?? null;
   App.sitzungIdx = 0;
   $('#leer-zustand').hidden = true;
@@ -236,11 +203,56 @@ async function analysiere(bestaetigte) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Name confirmation                                                   */
+/* Name confirmation. */
 /* ------------------------------------------------------------------ */
+
+const ANONYM_HINWEIS = {
+  ein: 'Every name you confirm becomes “Person A” before anything is computed. '
+    + 'Switch this off if the transcripts are already de-identified, or if the '
+    + 'consent and the data protection are settled elsewhere and you would '
+    + 'rather read real names.',
+  aus: 'Names stay as they are. They are still detected — you confirm who is a '
+    + 'person, and they appear by name in the sociogram, in the word lists and '
+    + 'in anything you export. Nothing leaves this tab either way; what you '
+    + 'export yourself is then personal data.',
+};
+
+const EXPORT_TITEL = {
+  ein: 'Write the figures to a JSON file on this machine. No names, no '
+    + 'filenames, no transcript lines.',
+  aus: 'Write the figures to a JSON file on this machine. No filenames and no '
+    + 'transcript lines — but names were kept, so the file names people.',
+};
+
+/* Der Schalter erklärt sich selbst, in beiden Stellungen. */
+function zeigeAnonymwahl() {
+  const ein = $('#anonymisieren').checked;
+  $('.anonymwahl').classList.toggle('aus', !ein);
+  $('#anonymwahl-hinweis').textContent = ein ? ANONYM_HINWEIS.ein : ANONYM_HINWEIS.aus;
+  $('#export').title = ein ? EXPORT_TITEL.ein : EXPORT_TITEL.aus;
+}
+
+const NAMENSDIALOG = {
+  ersetzen: {
+    text: 'These look like personal names, but only you know which of them are '
+      + 'people. Each one you confirm is replaced by a stable placeholder '
+      + '(“Person A”) before anything is computed; the mapping stays in this tab.',
+    knopf: 'Replace and analyse',
+  },
+  klarnamen: {
+    text: 'You switched name replacement off, so nothing here is replaced: the '
+      + 'transcripts are analysed under the real names. Confirming a name only '
+      + 'tells the tool it is a person, which is what puts them in the '
+      + 'sociogram — and what carries them into the export.',
+    knopf: 'Confirm and analyse',
+  },
+};
 
 function zeigeNamensdialog(kandidaten) {
   const dialog = $('#namensdialog');
+  const text = NAMENSDIALOG[App.anonymisieren ? 'ersetzen' : 'klarnamen'];
+  $('#namensdialog-text').textContent = text.text;
+  $('#namen-uebernehmen').textContent = text.knopf;
   $('#namensliste').innerHTML = kandidaten.map((k) => `
     <li>
       <label>
@@ -255,7 +267,7 @@ function zeigeNamensdialog(kandidaten) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Navigation                                                          */
+/* Navigation. */
 /* ------------------------------------------------------------------ */
 
 function bauKlientenwahl() {
@@ -292,8 +304,9 @@ function zeichne() {
   if (!App.bericht) return;
 
   if (App.ansicht === 'befund') {
-    ziel.innerHTML = V.befundAnsicht(App.befunde, App.bericht.hinweise?.sprache,
-      App.bericht.klienten)
+    ziel.innerHTML = V.namenshinweis(App.anonymisieren)
+      + V.befundAnsicht(App.befunde, App.bericht.hinweise?.sprache,
+        App.bericht.klienten)
       + V.geltung(App.bericht.hinweise?.geltung ?? []);
   } else if (App.ansicht === 'sitzung' && klient) {
     const sitzung = klient.sitzungen[App.sitzungIdx];
@@ -315,21 +328,15 @@ function zeichne() {
   ziel.scrollTop = 0;
 }
 
-/* The ingest report goes up before the analysis — that is the entire point of
- * it. Whoever sees curves first and only then learns that the speakers were
- * guessed has already believed the curves. */
+/* Findings before curves, deliberately. */
 function zeigeBefund() {
   $('#leer-zustand').hidden = true;
-  $('#ansicht').innerHTML = V.befundAnsicht(App.befunde);
+  $('#ansicht').innerHTML = V.namenshinweis(App.anonymisieren)
+    + V.befundAnsicht(App.befunde);
 }
 
-/* The language select in the ingest report. Detection is a heuristic, so it
- * needs a one-click correction rather than a paragraph of hedging — the same
- * reasoning as the speaker swap. Changing it re-runs the whole analysis,
- * because every word list downstream depends on it. */
-/* Der Fallname ist Beschriftung, keine Messung — deshalb wird nach dem
- * Umbenennen zwar neu gerechnet (die Gruppierung hängt daran), aber nichts
- * gefragt und nichts gewarnt. */
+/* Detection is a guess: one-click correction. */
+/* Fallname ist Beschriftung, keine Messung. */
 async function benenneKlient(alt, neu) {
   if (!neu.trim() || neu.trim() === alt) return;
   py('klient_umbenennen', alt, neu);
@@ -355,10 +362,7 @@ async function setzeSprache(sid, code) {
   zeichne();
 }
 
-/* Who is the therapist is the one judgement the whole "see yourself" half rests
- * on. Get it backwards and every number is still correct and still about the
- * wrong person — which is why this sits in the ingest report next to the
- * guess, and not in a settings dialogue somewhere behind the curves. */
+/* The one judgement everything rests on. */
 async function tauscheSprecher(sid) {
   py('sprecher_tauschen', sid);
   App.befunde = py('befunde');
@@ -373,9 +377,7 @@ async function tauscheSprecher(sid) {
 }
 
 function konkordanzAnsicht() {
-  // The placeholder follows the client on screen: whoever is looking at an
-  // English case is about to type an English word, and a German example there
-  // would just be noise.
+  // Placeholder follows the client's language.
   const sprache = aktiverKlient()?.sprache ?? App.bericht?.sprachen?.codes?.[0] ?? 'de';
   const beispiel = sprache === 'en'
     ? 'An English word or phrase, e.g. ashamed or “I don’t know”'
@@ -403,7 +405,7 @@ function konkordanzAnsicht() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Evidence drawer                                                     */
+/* Evidence drawer. */
 /* ------------------------------------------------------------------ */
 
 function oeffneSchublade(titel, inhalt) {
@@ -419,8 +421,7 @@ function schliesseSchublade() {
 
 function zeigeBelege(marker, sprecher, klientId, titel, hinweis) {
   const klient = klientId || App.klientId;
-  // On the session card, restrict the evidence to the session on screen. In
-  // every other view, show it across the whole case.
+  // Session card: this session only.
   const sid = App.ansicht === 'sitzung'
     ? aktiverKlient()?.sitzungen[App.sitzungIdx]?.sid ?? ''
     : '';
@@ -445,10 +446,7 @@ function suche(begriff, sprecher = '') {
   fuehreSucheAus();
 }
 
-/* Der Wortverlauf wird bei jeder Eingabe frisch gerechnet statt im Bericht
- * mitgeliefert — siehe App.wort. Gezeichnet wird mit demselben verlauf(), das
- * die Marker benutzen, damit eine Wortkurve und eine Markerkurve dasselbe
- * bedeuten und dieselben Klicks vertragen. */
+/* Wortverlauf: frisch gerechnet, nicht im Bericht. */
 function zeichneWortverlauf(begriff, { behalten = false } = {}) {
   const wort = String(begriff ?? '').trim();
   const klient = aktiverKlient();
@@ -482,7 +480,7 @@ function fuehreSucheAus() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Samples and export                                                  */
+/* Samples and export. */
 /* ------------------------------------------------------------------ */
 
 async function ladeBeispiele() {
@@ -509,7 +507,7 @@ function exportiere() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Events                                                              */
+/* Events. */
 /* ------------------------------------------------------------------ */
 
 function verdrahte() {
@@ -526,6 +524,8 @@ function verdrahte() {
 
   $('#dateiwahl').addEventListener('change', (ev) => verarbeite([...ev.target.files]));
   $('#einfuegen-los').addEventListener('click', verarbeiteEingefuegtes);
+  $('#anonymisieren').addEventListener('change', zeigeAnonymwahl);
+  zeigeAnonymwahl();
   $('#beispiele').addEventListener('click', ladeBeispiele);
   $('#export').addEventListener('click', exportiere);
   $('#neu').addEventListener('click', () => {
@@ -573,9 +573,7 @@ function verdrahte() {
     await analysiere([]);
   });
 
-  // One delegate for everything clickable. The views produce their HTML as
-  // strings; hanging individual listeners on them would be bookkeeping with no
-  // benefit.
+  // One delegate for everything clickable.
   document.addEventListener('click', behandleKlick);
   document.addEventListener('keydown', (ev) => {
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches?.('.klickbar')) {

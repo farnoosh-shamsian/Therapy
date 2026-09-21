@@ -1,31 +1,4 @@
-"""Tokenisierung, Satzsegmentierung und grobe Lemmatisierung, deutsch und englisch.
-
-Bewusst ohne spaCy, ohne HanTa, ohne simplemma, ohne nltk — nicht weil die
-schlechter wären, sondern weil jede Abhängigkeit ein Netzwerkaufruf beim Laden
-ist und das Versprechen "Seite laden, WLAN ausschalten, weiterarbeiten"
-kaputtmacht.
-
-Was das kostet, offen gesagt: die Lemmatisierung hier ist eine Suffixregel-
-Kaskade mit Ausnahmeliste, kein Vollformenlexikon. Sie liegt bei
-hochfrequenten Wörtern fast immer richtig und im Langschwanz manchmal daneben.
-Für die Zwecke dieses Werkzeugs — Wortüberlappung zwischen Turns, Zählung
-distinkter Emotionslemmata, Kollokationen — ist das tragbar, weil der Fehler
-über alle Sitzungen hinweg derselbe ist. Für alles, was eine *absolute*
-linguistische Aussage wäre, wäre es das nicht, und deshalb gibt es hier keine.
-
-Jede Tokenposition trägt ihren Zeichen-Offset im Ursprungstext mit. Ohne das
-gäbe es keine Konkordanz, und ohne Konkordanz wäre das ganze Werkzeug ein
-Dashboard.
-
-**Zur Zweisprachigkeit.** Die Tokenisierung selbst ist für beide Sprachen
-dieselbe Funktion — der reguläre Ausdruck deckt Umlaute und Apostroph-
-Kontraktionen gleichzeitig ab, und "don't" bleibt dabei genau so ein Token,
-wie "geht's" eines ist. Auseinander gehen die beiden Sprachen erst an zwei
-Stellen, und beide sind unten als Parameter sichtbar: die Abkürzungsliste für
-die Satzgrenzen und die Lemmatisierung. Es gibt deshalb zwei Lemmafunktionen
-und nicht eine mit einem Schalter — die Regelkaskaden haben nichts gemeinsam
-ausser ihrer Form.
-"""
+"""Tokenisierung, Sätze, grobe Lemmata, Komposita."""
 
 from __future__ import annotations
 
@@ -41,9 +14,6 @@ UMLAUTE = "äöüÄÖÜß"
 _WORT_INNEN = r"[A-Za-zÄÖÜäöüß0-9]"
 
 # Ein Token ist:
-#   * ein Wort, ggf. mit Binnenbindestrich oder Apostroph (geht's, Mund-zu-Mund)
-#   * eine Zahl (auch 12:30, 3,5)
-#   * ein einzelnes Satzzeichen
 _TOKEN_RE = re.compile(
     r"""
       (?P<wort>[A-Za-zÄÖÜäöüß](?:[A-Za-zÄÖÜäöüß0-9]|['’’-](?=[A-Za-zÄÖÜäöüß]))*)
@@ -53,7 +23,7 @@ _TOKEN_RE = re.compile(
     re.VERBOSE,
 )
 
-# Abkürzungen, nach denen ein Punkt kein Satzende ist.
+# Abkürzungen, nach denen ein Punkt kein Satzende.
 ABKUERZUNGEN_DE = {
     "z.b", "d.h", "u.a", "bzw", "usw", "etc", "ca", "evtl", "ggf", "vgl",
     "bspw", "inkl", "max", "min", "ggfs", "nr", "abs", "art", "hr", "fr",
@@ -70,9 +40,7 @@ ABKUERZUNGEN_EN = {
     "nov", "dec", "am", "pm", "a.m", "p.m", "u.s", "u.k", "ph.d", "b.c",
 }
 
-# Rückwärtskompatibler Name. Vor der Zweisprachigkeit hiess die deutsche
-# Liste einfach so, und ein paar Aufrufer ausserhalb dieses Moduls kannten
-# sie unter diesem Namen.
+# Rückwärtskompatibler Name.
 ABKUERZUNGEN = ABKUERZUNGEN_DE
 
 _ABKUERZUNGEN_JE_SPRACHE = {"de": ABKUERZUNGEN_DE, "en": ABKUERZUNGEN_EN}
@@ -86,12 +54,7 @@ _SATZ_ENDE_RE = re.compile(r"[.!?…]+[\"»«')\]]*\s")
 
 @dataclass(slots=True)
 class Token:
-    """Ein Token mit Herkunftsadresse.
-
-    ``start``/``end`` sind Zeichen-Offsets im Text, aus dem tokenisiert wurde.
-    Sie sind der einzige Grund, warum man von einer Zahl in der Oberfläche
-    zurück in den Satz springen kann.
-    """
+    """Ein Token mit Herkunftsadresse."""
 
     text: str
     start: int
@@ -127,12 +90,7 @@ _ERSETZUNGEN = {
 
 
 def normalisiere(text: str) -> str:
-    """Vereinheitlicht Unicode-Varianten, **ohne** die Textlänge zu ändern,
-    ausser bei "…" → "..." (dort wird sie länger, was Offsets verschiebt).
-
-    Deshalb wird diese Funktion genau einmal beim Einlesen angewandt und
-    danach nie wieder — alle Offsets beziehen sich auf das Ergebnis.
-    """
+    """Vereinheitlicht Unicode-Varianten, **ohne** die Textlänge zu ändern,"""
     text = unicodedata.normalize("NFC", text)
     for alt, neu in _ERSETZUNGEN.items():
         if alt in text:
@@ -141,7 +99,7 @@ def normalisiere(text: str) -> str:
 
 
 def entferne_diakritika(wort: str) -> str:
-    """ä→a, ö→o, ü→u, ß→ss. Nur für Fuzzy-Vergleiche, nie für Anzeige."""
+    """ä→a, ö→o, ü→u, ß→ss."""
     tabelle = {"ä": "a", "ö": "o", "ü": "u", "ß": "ss",
                "Ä": "A", "Ö": "O", "Ü": "U"}
     return "".join(tabelle.get(c, c) for c in wort)
@@ -158,12 +116,7 @@ def umlaut_rueck(wort: str) -> str:
 # ---------------------------------------------------------------------------
 
 def tokenisiere(text: str, sprache: str = "de") -> list[Token]:
-    """Zerlegt ``text`` in Tokens mit Offsets und Satzindex.
-
-    ``sprache`` wirkt sich nur auf die Satzgrenzen aus (Abkürzungsliste). Die
-    Tokengrenzen selbst sind sprachunabhängig — der Ausdruck oben deckt
-    Umlaute und Kontraktionen gleichzeitig ab.
-    """
+    """Zerlegt Text in Tokens mit Offsets."""
     tokens: list[Token] = []
     for m in _TOKEN_RE.finditer(text):
         art = m.lastgroup or "zeichen"
@@ -178,9 +131,7 @@ def _setze_satzindex(text: str, tokens: list[Token], sprache: str = "de") -> Non
     position = 0
     for i, tok in enumerate(tokens):
         tok.satz = satz
-        # Nur Wörter und Zahlen zählen als Position: ein führendes
-        # Anführungszeichen darf das erste Wort nicht satzintern machen,
-        # sonst gilt jeder zitierte Satzanfang als Substantiv.
+        # Nur Wörter und Zahlen zählen als Position:
         tok.satz_position = position
         if tok.art != "zeichen":
             position += 1
@@ -191,10 +142,10 @@ def _setze_satzindex(text: str, tokens: list[Token], sprache: str = "de") -> Non
             vor = tokens[i - 1].text.lower()
             if vor in abkuerzungen or (len(vor) == 1 and vor.isalpha()):
                 continue
-        # Punkt als Teil einer Zahl ("3. Sitzung") beendet keinen Satz.
+        # Punkt als Teil einer Zahl ("3.
         if tok.text == "." and i > 0 and tokens[i - 1].art == "zahl":
             continue
-        # Folgt kleingeschriebenes Wort, war es vermutlich kein Satzende.
+        # Folgt kleingeschriebenes Wort, war es vermutlich kein.
         nach = next((t for t in tokens[i + 1:] if t.art != "zeichen"), None)
         if nach is not None and nach.art == "wort" and nach.text[0].islower():
             continue
@@ -232,10 +183,6 @@ def kleintext(tokens: list[Token]) -> list[str]:
 # ---------------------------------------------------------------------------
 # Grobe Lemmatisierung
 # ---------------------------------------------------------------------------
-#
-# Regelkaskade, absteigend nach Suffixlänge, mit harter Mindeststammlänge.
-# Die Ausnahmeliste deckt die hochfrequenten unregelmässigen Formen ab, weil
-# genau die in Therapietranskripten den Grossteil der Masse ausmachen.
 
 _IRREGULAER = {
     # sein
@@ -346,13 +293,7 @@ _lemma_cache: dict[str, str] = {}
 
 
 def lemma_grob(wort: str) -> str:
-    """Grobe Grundform. Deterministisch, verlustbehaftet, gecacht.
-
-    Nicht dafür gedacht, eine linguistisch korrekte Grundform zu liefern,
-    sondern dafür, *dieselbe* Zeichenkette für Formen desselben Wortes zu
-    liefern. Für Überlappungs- und Distinktheitsmasse ist genau das die
-    relevante Eigenschaft.
-    """
+    """Grobe Grundform. Deterministisch, verlustbehaftet, gecacht."""
     if wort in _lemma_cache:
         return _lemma_cache[wort]
     roh = wort
@@ -366,7 +307,7 @@ def lemma_grob(wort: str) -> str:
     elif len(w) <= 3:
         ergebnis = w
     else:
-        # Partizip II: gemacht -> machen, gegangen -> gangen (unschön, aber stabil)
+        # Partizip II:
         m = _PARTIZIP_RE.match(w)
         kandidat = w
         if m:
@@ -377,12 +318,7 @@ def lemma_grob(wort: str) -> str:
                 if kandidat.endswith(suffix) and len(kandidat) - len(suffix) >= minlen:
                     kandidat = kandidat[: -len(suffix)] + ersatz
                     break
-        # Keine Umlautrücknahme an dieser Stelle. Sie würde "fühlen" zu
-        # "fuhlen" und "zärtlich" zu "zartlich" machen — für den reinen
-        # Abgleich egal, für jede Anzeige (Keyness, Kollokationen, Konkordanz)
-        # aber unbrauchbar, und angezeigt wird das Lemma überall. Der eine
-        # Fall, in dem Umlautrücknahme wirklich hilft (Pluralumlaut in
-        # Komposita: Bäume/Baum), holt sie sich in zerlege_kompositum gezielt.
+        # Keine Umlautrücknahme an dieser Stelle.
         ergebnis = kandidat
 
     _lemma_cache[roh] = ergebnis
@@ -392,23 +328,6 @@ def lemma_grob(wort: str) -> str:
 # ---------------------------------------------------------------------------
 # Grobe Lemmatisierung, englisch
 # ---------------------------------------------------------------------------
-#
-# Eigene Funktion statt eines Schalters in der obigen: die beiden Kaskaden
-# haben ausser ihrer Form nichts gemeinsam. Deutsch flektiert über Umlaut und
-# Endung und hat viele Vollformen; Englisch hat fast keine Flexion, dafür drei
-# produktive Suffixe (-s, -ing, -ed) und eine kurze, sehr häufige Liste
-# unregelmässiger Verben.
-#
-# Kontraktionen bekommen ihre eigene Zeile in der Ausnahmetabelle, weil der
-# Tokenizer sie zusammenhält: "i'm" und "i" sollen dasselbe Lemma haben,
-# sonst zerfällt die häufigste Selbstreferenz des Korpus in vier Einträge.
-#
-# Die bekannte Schwäche, offen gesagt: bei "-ing" und "-ed" muss ein stummes
-# "e" geraten werden ("noticing" → "notic" → "notice"). Die Regel unten trifft
-# die häufigen Fälle (Stamm endet auf c, g, s, v, z, u) und liegt bei den
-# übrigen manchmal daneben. Wie drüben gilt: der Fehler ist über alle
-# Sitzungen derselbe, und für Überlappungs- und Distinktheitsmasse ist genau
-# das die relevante Eigenschaft.
 
 _IRREGULAER_EN = {
     # sein / haben / tun
@@ -486,15 +405,7 @@ _IRREGULAER_EN = {
     "an": "a", "the": "the",
 }
 
-# Stammendungen, nach denen ein stummes "e" zurückgeholt wird.
-#
-# Bewusst kurz. "g" und "s" stünden hier gern mit dabei ("changing" → "change",
-# "using" → "use"), können aber nicht: dieselbe Regel macht aus "singing" ein
-# "singe" und aus "focusing" ein "focuse". Ein verpasstes Zusammenfallen
-# ("changing" bleibt "chang", "change" bleibt "change") kostet eine Zeile in
-# einer Frequenzliste. Ein falsches Zusammenfallen verfälscht eine Zahl. Bei
-# c, v, z und u gibt es den Gegenfall praktisch nicht — englische Wörter enden
-# fast nie auf ein blankes v oder z.
+# Stammendungen, nach denen ein stummes "e" zurückgeholt.
 _STUMMES_E = ("c", "v", "z", "u")
 
 _DOPPELBAR = "bdfglmnprtz"
@@ -503,12 +414,7 @@ _lemma_cache_en: dict[str, str] = {}
 
 
 def lemma_grob_en(wort: str) -> str:
-    """Grobe englische Grundform. Deterministisch, verlustbehaftet, gecacht.
-
-    Wie das deutsche Gegenstück nicht dafür gedacht, eine linguistisch
-    korrekte Grundform zu liefern, sondern *dieselbe* Zeichenkette für Formen
-    desselben Wortes.
-    """
+    """Grobe englische Grundform. Deterministisch, verlustbehaftet, gecacht."""
     if wort in _lemma_cache_en:
         return _lemma_cache_en[wort]
     roh = wort
@@ -520,11 +426,10 @@ def lemma_grob_en(wort: str) -> str:
     elif w in _IRREGULAER_EN:
         ergebnis = _IRREGULAER_EN[w]
     elif w.endswith("n't"):
-        # "don't" → "do", "wasn't" → "be". Die Negation selbst wird an anderer
-        # Stelle gezählt; fürs Lemma zählt das Verb darunter.
+        # "don't" → "do", "wasn't" → "be".
         ergebnis = lemma_grob_en(w[:-3]) if len(w) > 4 else w
     elif "'" in w:
-        # "i'd", "she'll" — das Lemma ist der Teil vor dem Apostroph.
+        # "i'd", "she'll"
         ergebnis = lemma_grob_en(w.split("'", 1)[0]) or w
     elif len(w) <= 3:
         ergebnis = w
@@ -559,24 +464,13 @@ def _englische_suffixe(w: str) -> str:
             stamm += "e"                     # "noticing" → "notice"
         return stamm
 
-    # Adverbien auf -ly bleiben stehen: "hardly" und "hard" sind im
-    # Therapiematerial nicht dasselbe Wort, und das Zusammenwerfen würde
-    # ausgerechnet bei den Hecken Schaden anrichten.
+    # Adverbien auf -ly bleiben stehen:
     return w
 
 
 # ---------------------------------------------------------------------------
 # Kompositazerlegung
 # ---------------------------------------------------------------------------
-#
-# "Verlustangst", "Schuldgefühle", "Versagensangst" — jedes erscheint einmal
-# und verschwindet im Langschwanz, wenn man es nicht zerlegt. Genau dort
-# versteckt sich das emotional geladene Vokabular.
-#
-# Verfahren: Rechtskopf-Suche gegen ein bekanntes Vokabular (Korpusfrequenzen
-# plus Lexikonwörter). Der rechte Teil muss bekannt und lang genug sein, der
-# linke ebenfalls — sonst wird nicht zerlegt. Lieber ein verpasstes Kompositum
-# als ein erfundenes.
 
 FUGEN = ("s", "es", "n", "en", "er", "e", "")
 MIN_TEIL = 4
@@ -587,10 +481,7 @@ def zerlege_kompositum(
     vokabular: set[str],
     min_gesamt: int = 9,
 ) -> list[str] | None:
-    """Zerlegt ein Kompositum in zwei bis drei Teile, oder gibt ``None``.
-
-    ``vokabular`` enthält kleingeschriebene bekannte Wörter/Lemmata.
-    """
+    """Zerlegt ein Kompositum in zwei bis drei."""
     w = wort.lower()
     if len(w) < min_gesamt or not w.isalpha():
         return None
@@ -621,14 +512,7 @@ def zerlege_kompositum(
 
 
 def typ_token_verhaeltnis(formen: list[str], fenster: int = 100) -> float:
-    """Standardisiertes Type-Token-Verhältnis (STTR).
-
-    Rohes TTR sinkt mechanisch mit der Textlänge und ist damit zwischen
-    Sitzungen unterschiedlicher Länge wertlos. Hier wird in Fenstern fester
-    Grösse gerechnet und gemittelt. Reicht der Text für kein volles Fenster,
-    wird das Rest-TTR zurückgegeben und die Zahl ist entsprechend wackliger —
-    report.py hängt deshalb die Tokenzahl mit an.
-    """
+    """Standardisiertes Type-Token-Verhältnis (STTR)."""
     if not formen:
         return 0.0
     if len(formen) < fenster:

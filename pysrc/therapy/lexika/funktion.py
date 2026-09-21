@@ -1,16 +1,4 @@
-"""Funktionswörter: Stoppwörter, Pronomenparadigmen, LSM-Kategorien.
-
-Funktionswörter sind für zwei Dinge da, die einander widersprechen:
-
-* In der Inhaltsanalyse (Kollokationen, Keyness, lexikalische Aufnahme) sind
-  sie Rauschen und fliegen raus → STOPPWOERTER.
-* Im Language Style Matching sind sie *das Signal selbst* — Stilangleichung
-  passiert fast ausschliesslich über Funktionswörter, nicht über Inhalt
-  (Niederhoffer & Pennebaker) → LSM_KATEGORIEN.
-
-Deshalb zwei Listen, die sich stark überschneiden, aber unterschiedlich
-geschnitten sind. Das ist Absicht.
-"""
+"""Funktionswörter: Stoppwörter, Pronomenparadigmen, LSM-Kategorien."""
 
 from __future__ import annotations
 
@@ -39,19 +27,13 @@ PRONOMEN = {
                      "diesen", "jener", "jene", "jenes", "derjenige", "dasselbe"},
 }
 
-# "Sie" höflich vs. "sie" 3. Person ist nur über Grossschreibung mitten im
-# Satz zu trennen. dialogue.py macht genau das und sonst nichts.
+# "Sie" höflich vs.
 SIEZEN_MARKER = {"Sie", "Ihnen", "Ihr", "Ihre", "Ihrem", "Ihren", "Ihrer"}
 
 
 # ---------------------------------------------------------------------------
 # LSM-Kategorien
 # ---------------------------------------------------------------------------
-#
-# Neun Kategorien, nah an der Pennebaker'schen Einteilung, ins Deutsche
-# übersetzt. LSM wird pro Kategorie berechnet und dann gemittelt — nicht über
-# die Gesamtmenge der Funktionswörter, sonst dominiert die Artikelkategorie
-# alles andere.
 
 LSM_KATEGORIEN = {
     "artikel": {
@@ -124,10 +106,6 @@ del _kat
 # ---------------------------------------------------------------------------
 # Stoppwörter
 # ---------------------------------------------------------------------------
-#
-# Für Kollokationen, Keyness und lexikalische Aufnahme. Bewusst etwas grösser
-# als die Funktionswortliste: hier kommen gesprochensprachliche Füllsel dazu,
-# die keine Funktionswortkategorie haben, aber jede Frequenzliste verstopfen.
 
 _FUELLSEL = {
     "äh", "ähm", "hm", "hmm", "mhm", "öh", "ähem", "tja", "naja", "na",
@@ -169,19 +147,13 @@ _ALLGEMEIN = {
 
 STOPPWOERTER: set[str] = _ALLGEMEIN | _FUELLSEL | FUNKTIONSWOERTER
 
-# Diese Wörter stehen zwar in STOPPWOERTER, sind aber klinisch nie egal.
-# lexical.py nimmt sie von der Stoppwortfilterung aus, wenn ausdrücklich
-# danach gesucht wird (Konkordanz funktioniert immer auf dem Volltext).
+# Diese Wörter stehen zwar in STOPPWOERTER, sind.
 STOPPWORT_AUSNAHMEN = {"ich", "man", "nicht", "nie", "immer", "kein", "muss", "sollte"}
 
 
 # ---------------------------------------------------------------------------
 # Füllwörter und Rückmeldepartikeln
 # ---------------------------------------------------------------------------
-#
-# Wichtig für dialogue.py: ein Therapeuten-Turn aus nur "mhm" ist ein
-# Rückkanal und kein Redebeitrag. Wenn man das nicht trennt, sieht jede
-# Redeanteilsstatistik falsch aus.
 
 RUECKKANAL = {
     "mhm", "hm", "hmm", "mh", "aha", "ah", "ach so", "achso", "ja", "ja ja",
@@ -191,5 +163,5 @@ RUECKKANAL = {
 
 VERZOEGERUNG = {"äh", "ähm", "öh", "öhm", "hm", "em", "ehm", "mh"}
 
-# Abbrüche und Selbstkorrekturen im Transkript, oft als "-" oder "/" notiert.
+# Abbrüche und Selbstkorrekturen im Transkript, oft als.
 ABBRUCH_ZEICHEN = ("-", "--", "/", "…", "...")

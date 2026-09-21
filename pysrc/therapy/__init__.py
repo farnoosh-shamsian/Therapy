@@ -1,17 +1,4 @@
-"""Thera.py — distant reading für deutsche und englische Therapietranskripte.
-
-    In jeder Stunde vorhanden. Lesbar erst über das Jahr.
-
-Dieses Paket ist bewusst ein normales Python-Paket und kein Inline-Skript:
-derselbe Code läuft im Browser über Pyodide **und** lokal per ``pip install``
-über ein ganzes Korpus, und er lässt sich in einer CI testen.
-
-Öffentliche Oberfläche für die Browser-Brücke sind die Funktionen ganz unten.
-Sie geben allesamt JSON-*Strings* zurück, nicht Python-Objekte. Das ist eine
-bewusste Entscheidung: die Grenze zwischen Python und JavaScript bleibt damit
-eine einzige, gut sichtbare Stelle, statt über Proxy-Objekte im ganzen
-Frontend zu verlaufen.
-"""
+"""Distant reading für Therapietranskripte."""
 
 from __future__ import annotations
 
@@ -30,7 +17,7 @@ __all__ = [
     "sprachen",
 ]
 
-# Ein Korpus pro geladener Seite. Der Zustand lebt hier und nirgends sonst.
+# Ein Korpus pro geladener Seite.
 korpus = Korpus()
 
 
@@ -44,26 +31,13 @@ def _json(objekt) -> str:
 
 def lade(dateien_json: str, klient: str | None = None,
          sprache: str | None = None) -> str:
-    """``dateien_json`` = ``[{"name": …, "inhalt": …, "klient": …, "sprache": …}, …]``.
-
-    ``sprache`` ist optional und überschreibt die Erkennung für alle Dateien
-    dieses Aufrufs. Ohne sie entscheidet der Dateiname, und ohne Hinweis dort
-    die Erkennung — siehe ``ingest.bestimme_sprache``.
-    """
+    """``dateien_json`` = ``[{"name":."""
     dateien = json.loads(dateien_json)
     return _json(korpus.lade(dateien, klient_id=klient, sprache=sprache or None))
 
 
 def befunde() -> str:
-    """Ein Eintrag je *Datei* — wie bei :func:`lade`, und aus gutem Grund.
-
-    Die Abschnitte einer geteilten Datei teilen sich einen Befund. Wer hier je
-    Sitzung zählt, schreibt die Befundzeile so oft in die Tabelle, wie der Text
-    Sitzungen hat, und jede Warnung darin gleich mit — ein eingefügtes Jahr
-    erschiene zwölfmal. ``lade`` gibt einen Eintrag je Datei zurück; dass diese
-    Funktion danach etwas anderes liefert, wäre für die Oberfläche ein Sprung
-    mitten im Betrieb.
-    """
+    """Ein Eintrag je *Datei*."""
     gesehen: list[int] = []
     raus: list[dict] = []
     for sitzung in korpus.sitzungen:
@@ -78,9 +52,11 @@ def namensvorschlaege() -> str:
     return _json(korpus.namensvorschlaege())
 
 
-def pseudonymisiere(bestaetigte_json: str | None = None) -> str:
+def pseudonymisiere(bestaetigte_json: str | None = None,
+                    ersetzen: bool = True) -> str:
+    """``ersetzen=False``: Namen bleiben stehen, werden aber weiter erkannt."""
     bestaetigte = json.loads(bestaetigte_json) if bestaetigte_json else None
-    return _json(korpus.pseudonymisiere(bestaetigte))
+    return _json(korpus.pseudonymisiere(bestaetigte, ersetzen=bool(ersetzen)))
 
 
 def bericht() -> str:
@@ -127,7 +103,7 @@ def sprecher_tauschen(sid: str) -> str:
 
 
 def sprache_setzen(sid: str, code: str) -> str:
-    """Korrigiert die erkannte Sprache einer Sitzung von Hand."""
+    """Korrigiert die erkannte Sprache einer Sitzung von."""
     korpus.sprache_setzen(sid, code)
     return _json({"ok": True, "sid": sid, "sprache": code})
 

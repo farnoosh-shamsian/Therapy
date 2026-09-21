@@ -1,41 +1,11 @@
-/* Thera.py — views.
- *
- * Four views (session, trends, keywords, concordance) plus the ingest report,
- * which is the fifth button and the one to read first.
- * Every function here returns HTML as a string; wiring up the clicks is
- * main.js's job.
- *
- * Note on language: the interface is English; the material is German or
- * English, per session. Marker names are translated, but every example inside
- * them is quoted in the language it was spoken in and left untranslated —
- * "man fühlt sich dann halt schlecht" has no English equivalent, and that is
- * exactly why this tool analyses each session in its own language rather than
- * a translation of it.
- *
- * Nothing in this file knows which markers exist. Which tiles a session card
- * shows, which series the trends draw, and what every label and caveat says
- * comes from `beschriftung` in the report, keyed by the session's language.
- * That is deliberate: a view with a hard-coded list of German keys shows an
- * English session ten empty tiles.
- *
- * Three rules that hold in every view:
- *
- *  1. **Every number carries its confidence and its caveat.** A number without
- *     a statement of what it can bear is not information here, it is a claim.
- *  2. **Every number is clickable** and opens the lines that produced it.
- *     Without that, Thera.py becomes a dashboard he watches instead of a
- *     person he listens to.
- *  3. **Wherever two languages meet, the view says so.** Rates computed with
- *     different word lists are not comparable, and a chart that quietly puts
- *     them on one axis is worse than no chart.
- */
+/* The five views. Labels come from the report. */
 
 import * as C from './charts.js';
 
 const esc = C.esc;
 
 /* ------------------------------------------------------------------ */
-/* Building blocks                                                     */
+/* Building blocks. */
 /* ------------------------------------------------------------------ */
 
 export function konfidenz(stufe) {
@@ -47,14 +17,10 @@ export function konfidenz(stufe) {
   return `<span class="konf konf-${esc(String(stufe).replace('*', 'stern'))}" title="${esc(titel)}">${esc(stufe)}</span>`;
 }
 
-/**
- * One metric tile. `marker` makes it clickable and names the hit list to open.
- */
+/* One metric tile. */
 export function kachel({ label, wert, konf, hinweis, marker, sprecher, spark, klient }) {
   const klickbar = marker ? ' klickbar' : '';
-  // The drawer needs the tile's own label and caveat: the marker key ("man")
-  // is not the same key as the metric ("man_quote"), so looking the label up
-  // again from the marker key would come back empty.
+  // Drawer needs the tile's own label.
   const attrs = marker
     ? ` tabindex="0" role="button" data-belege="${esc(marker)}"`
       + ` data-sprecher="${esc(sprecher ?? 'K')}" data-klient="${esc(klient ?? '')}"`
@@ -68,7 +34,7 @@ export function kachel({ label, wert, konf, hinweis, marker, sprecher, spark, kl
   </div>`;
 }
 
-/** Format names used by `beschriftung.kacheln`, which comes from Python. */
+/* Formats named by the language pack. */
 const FORMATE = {
   prozent: (v) => C.prozent(v),
   zahl0: (v) => C.zahl(v, 0),
@@ -76,11 +42,7 @@ const FORMATE = {
   zahl2: (v) => C.zahl(v, 2),
 };
 
-/**
- * Pulls the label tables for one language out of the report.
- * Falls back to the first language present rather than to German, so a
- * purely English corpus never renders a German caveat.
- */
+/* Pulls the label tables for one language. */
 export function fuerSprache(beschriftung, sprache) {
   const waehle = (tabelle) => tabelle?.[sprache]
     ?? tabelle?.[Object.keys(tabelle ?? {})[0]] ?? {};
@@ -97,6 +59,17 @@ export function sprachhinweis(text) {
   return `<div class="warnkasten sanft"><p>⚑ ${esc(text)}</p></div>`;
 }
 
+/* Steht über „What was read“, solange Klarnamen im Text stehen. */
+export function namenshinweis(anonymisiert) {
+  if (anonymisiert) return '';
+  return `<div class="warnkasten">
+    <p>⛑ <strong>Names were kept.</strong> You switched replacement off, so
+      the real names stand in the concordance, in the word lists and in the
+      sociogram — and in anything you export from here. Nothing leaves this tab
+      on its own; an export you make yourself is personal data.</p>
+  </div>`;
+}
+
 export function abschnitt(titel, inhalt, hinweis) {
   return `<section class="block">
     <h3>${esc(titel)}</h3>
@@ -106,7 +79,7 @@ export function abschnitt(titel, inhalt, hinweis) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Ingest report                                                       */
+/* Ingest report. */
 /* ------------------------------------------------------------------ */
 
 export function befundAnsicht(befunde, sprachhinweisText, klienten = []) {
@@ -120,9 +93,7 @@ export function befundAnsicht(befunde, sprachhinweisText, klienten = []) {
   };
   const SPALTEN = 8;
 
-  // The language select is the counterpart to the speaker swap: detection is a
-  // heuristic, so it gets a control that corrects it in one click rather than a
-  // paragraph explaining that it might be wrong.
+  // Counterpart to the speaker swap.
   const sprachWahl = (b) => `
     <select class="sprachwahl" data-sid="${esc(b.dateiname)}"
             title="Analyse this file with this language's word lists">
@@ -131,11 +102,7 @@ export function befundAnsicht(befunde, sprachhinweisText, klienten = []) {
     </select>
     <span class="sprach-quelle">${esc(sprachQuelle[b.spracheQuelle] ?? b.spracheQuelle)}</span>`;
 
-  // The swap the ingest report has been promising. When roles are guessed the
-  // warning says "swap them if that is wrong" — until now there was nothing to
-  // swap them with, which is worse than not offering it. Shown whenever there
-  // are roles at all: labels can be confidently read and still be the wrong way
-  // round, because an exporter that writes "Speaker 1" does not know who is who.
+  // Name the roles, not the labels.
   const sprecherZelle = (b) => {
     const text = esc(quelle[b.sprecherQuelle] ?? b.sprecherQuelle);
     if (b.sprecherQuelle === 'keine') return text;
@@ -173,11 +140,7 @@ export function befundAnsicht(befunde, sprachhinweisText, klienten = []) {
     + 'everything is recomputed.');
 }
 
-/* Der Fallname war bisher ausschliesslich aus dem Dateinamen ableitbar. Wer
- * einen Text einfügt, bekam einen Fall namens "unbekannt" in der Auswahlliste
- * und keinen Weg, ihn zu ändern — eine Zahl ohne Erklärung und ohne Griff.
- * Der Name ist reine Beschriftung: er wird nicht analysiert, und er steht
- * nicht im Export. */
+/* Fallname: eintippbar, wenn kein Dateiname da ist. */
 function fallnamen(klienten) {
   if (!klienten.length) return '';
   return `<div class="fallnamen">
@@ -194,10 +157,7 @@ function fallnamen(klienten) {
   </div>`;
 }
 
-/* Wie eine Datei in Sitzungen zerfiel. Steht im Befund und nicht in der
- * Dokumentation, weil es die folgenreichste Entscheidung des Einlesens ist:
- * ob die x-Achse Sitzungen zeigt oder Schnitte durch einen Text. Wer Segmente
- * für Sitzungen hält, liest jede Kurve falsch. */
+/* Wie eine Datei in Sitzungen zerfiel. */
 function teilungsZeile(b, spalten) {
   const teile = b.sitzungen ?? [];
   if (b.teilung === 'keine' || teile.length < 2) return '';
@@ -216,7 +176,7 @@ function teilungsZeile(b, spalten) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Session card                                                        */
+/* Session card. */
 /* ------------------------------------------------------------------ */
 
 export function sitzungskarte(klient, sitzung, beschriftung, hinweise, serien) {
@@ -228,8 +188,7 @@ export function sitzungskarte(klient, sitzung, beschriftung, hinweise, serien) {
   const spark = (schluessel) => (serien && serien[schluessel])
     ? C.sparkline(serien[schluessel]) : '';
 
-  // Which tiles, in which order, and which hit list a click opens: all of it
-  // comes from the language pack via the report. See the note at the top.
+  // Tiles and captions come from the pack.
   const kacheln = L.kacheln.map(([schluessel, format, marker]) => {
     const meta = B[schluessel] ?? B[schluessel.replace('_anzahl', '_rate')] ?? {};
     const fmt = FORMATE[format] ?? FORMATE.zahl1;
@@ -338,7 +297,7 @@ function fadenListe(faeden, klientId) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Arc (one client across all sessions)                                */
+/* Arc (one client across all sessions). */
 /* ------------------------------------------------------------------ */
 
 export function bogen(klient, beschriftung, hinweise) {
@@ -352,10 +311,7 @@ export function bogen(klient, beschriftung, hinweise) {
     : `<p class="leer">No changepoint above the reporting threshold. That is a
        valid result, not a failure.</p>`;
 
-  // The order comes from the language pack. Series that do not exist in this
-  // client's language — or that dropped out because the client switched
-  // language mid-course — are simply absent, and the spliced `vgl_*` series
-  // take their place at the end, carrying their own caveat.
+  // Order from the pack; spliced series last.
   const reihen = L.arcReihen
     .concat(Object.keys(a.serien).filter((s) => s.startsWith('vgl_')))
     .filter((s) => a.serien[s]);
@@ -422,8 +378,7 @@ function keynessListe(eintraege) {
   if (!eintraege?.length) return '<p class="leer">Nothing stands out here.</p>';
   return C.balken(eintraege.slice(0, 25).map((e) => ({
     label: e.anzeige ?? e.wort, wert: e.ll,
-    // G² sorts the list, log ratio says how big the difference actually is.
-    // Without the second number a long transcript puts everything at the top.
+    // G² sorts; log ratio sizes.
     zusatz: `${e.hier}× here, ${e.referenz}× elsewhere`
       + (e.logRatio !== null && e.logRatio !== undefined ? ` · ${C.zahl(e.logRatio, 1)}×log₂` : ''),
     schluessel: null,
@@ -431,9 +386,7 @@ function keynessListe(eintraege) {
     + `<p class="block-hinweis">Click a word to open the concordance.</p>`;
 }
 
-/* Frequenzen *nach* der Zerlegung — der eigentliche Zweck des Aufspaltens.
- * „Verlustangst“, „Versagensangst“ und „Zukunftsangst“ stehen einzeln je
- * einmal im Schwanz der Liste; zusammengerechnet steht „Angst“ oben. */
+/* Frequenzen *nach* der Zerlegung. */
 function teilfrequenzListe(eintraege) {
   if (!eintraege.length) return '';
   return `<h4 class="unter-titel">Counted after splitting</h4>
@@ -451,18 +404,9 @@ function kompositaListe(eintraege) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Keywords                                                            */
+/* Keywords. */
 /* ------------------------------------------------------------------ */
-/*
- * Keyness used to live at the bottom of the Arc, computed against the rest of
- * the caseload — which meant that a therapist who loaded one case saw an empty
- * list and no explanation. The view now leads with the two axes that compare a
- * text with itself, and keeps the cross-client axis for when there is more
- * than one case to compare.
- *
- * Division of labour with the Concordance: this view answers *which words*,
- * the Concordance shows *the lines*. Every word here is a button into it.
- */
+/* Keyness sits up top now. */
 
 export function woerter(klient, hinweise = {}) {
   const sw = klient.schluesselwoerter ?? {};
@@ -544,7 +488,7 @@ function wortSpalte(titel, eintraege, zusatz) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Concordance and evidence                                            */
+/* Concordance and evidence. */
 /* ------------------------------------------------------------------ */
 
 export function kwicListe(zeilen, begriff) {
@@ -582,7 +526,7 @@ export function kollokationsListe(eintraege, begriff) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Turn view (the jump back into the text)                             */
+/* Turn view: the jump back. */
 /* ------------------------------------------------------------------ */
 
 export function turnAnsicht(turns, fokus) {
@@ -594,14 +538,10 @@ export function turnAnsicht(turns, fokus) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Validity notes                                                      */
+/* Validity notes. */
 /* ------------------------------------------------------------------ */
 
-/* Die Vorbehalte stehen zugeklappt unter dem Befund. Sie gehören auf diese
- * Seite und nicht in eine Dokumentation, die niemand öffnet — aber sieben
- * Absätze Prosa unter der Einlesetabelle liest auch niemand, und sie schieben
- * die Zahlen aus dem Bild. Zugeklappt bleibt die Überschrift sichtbar; wer sie
- * einmal aufklappt, hat sie offen. */
+/* Vorbehalte: zugeklappt, aber vorhanden. */
 export function geltung(hinweise) {
   if (!hinweise?.length) return '';
   return `<details class="geltung-block">

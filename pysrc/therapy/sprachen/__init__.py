@@ -1,46 +1,4 @@
-"""Sprachpakete — was an diesem Werkzeug sprachabhängig ist, und nur das.
-
-Thera.py hat als deutsches Werkzeug angefangen. Dass es jetzt auch englische
-Sitzungen liest, ist kein Übersetzungsprojekt: die Marker, um die es geht,
-sind grammatische und lexikalische Eigenschaften der jeweiligen Sprache, und
-eine übersetzte Wortliste wäre eine Messung an der falschen Sprache.
-
-Deshalb dieser Schnitt: **alles, was von der Sprache abhängt, steht in genau
-einem Paket pro Sprache** (``de.py``, ``en.py``), und der Rest des Programms
-— Konkordanz, Wechselpunkte, Soziogramm, Bericht, Oberfläche — weiss von
-Sprache nichts ausser, welches Paket er fragen muss.
-
-Ein Paket ist ein gewöhnliches Modul. Es liefert:
-
-===========================  ================================================
-``CODE`` / ``NAME``          "de" / "German"
-``WORTLISTEN``               Markerschlüssel → Wortmenge
-``REGRET_MUSTER``            (Regex, Anzeigename)
-``emotion`` …                die vier Lexikonmodule
-``NEGATION`` …               Negationsmengen und -morphologie
-``ABKUERZUNGEN``             Punkt danach ist kein Satzende
-``KOMPOSITA``                ob Komposita zerlegt werden (nur Deutsch)
-``lemma(wort)``              grobe Grundform
-``tempus`` / ``passiv``      Teilanalysen mit eigener Morphologie
-``wortmarker_ok(…)``         Fehlalarmfilter pro Markerschlüssel
-``negation_morph_ok(wort)``  Filter für die Negationsmorphologie
-``kennzahlen(sm)``           Rohzählungen → die Zahlen der Oberfläche
-``BESCHRIFTUNG``             (Anzeigename, Konfidenz, Hinweis) je Kennzahl
-``KOMPOSIT_INDEX``           Gewichte für den Arc-Index
-``KACHELN`` / ``ARC_REIHEN`` welche Zahlen die Oberfläche zeigt, in welcher
-                             Reihenfolge
-``VERGLEICHBAR``             welcher Schlüssel hier welchem Begriff entspricht
-===========================  ================================================
-
-**Was ``VERGLEICHBAR`` behauptet und was nicht.** Es sagt, dass der deutsche
-Schlüssel ``man_quote`` und der englische ``generisch_quote`` denselben
-*Begriff* messen — die grammatische Flucht aus der ersten Person. Es sagt
-ausdrücklich **nicht**, dass die Zahlen ineinander umrechenbar sind. Deutsch
-hat mit "man" ein eigenes Pronomen, Englisch behilft sich mit generischem
-"you"; die Trefferquoten liegen schon deshalb auf verschiedenen Niveaus. Ein
-Vergleich der *Verläufe* ist zulässig, ein Vergleich der *Höhen* nicht, und
-die Oberfläche sagt das an jeder Stelle, an der beide Sprachen zusammenkommen.
-"""
+"""Sprachpakete — alles Sprachabhängige, und nur das."""
 
 from __future__ import annotations
 
@@ -54,18 +12,9 @@ STANDARD = "de"
 # ---------------------------------------------------------------------------
 # Abgleichsmaschinerie
 # ---------------------------------------------------------------------------
-#
-# Steht hier und nicht in markers.py, weil die Sprachpakete sie brauchen und
-# markers.py die Sprachpakete — andersherum gäbe es einen Importzyklus.
 
 class Lexikonmatcher:
-    """Gleicht eine Wortliste gegen Tokens (Einzelwörter) und gegen den
-    kleingeschriebenen Turn-Text (Mehrwortausdrücke) ab.
-
-    Warum beides: eine reine Tokenprüfung verpasst "auf keinen Fall" und
-    "kind of", eine reine Textprüfung verpasst die Wortgrenzen und findet
-    "nie" in "niemand" und "one" in "money".
-    """
+    """Gleicht eine Wortliste gegen Tokens ab."""
 
     __slots__ = ("einzeln", "phrasen_re", "name")
 
@@ -104,12 +53,7 @@ _PAKETE: dict[str, object] = {}
 
 
 def paket(code: str | None):
-    """Das Sprachpaket zu einem Code. Unbekanntes fällt auf Deutsch zurück.
-
-    Der Import passiert verzögert, damit ein Paket nur dann in den Speicher
-    kommt, wenn es gebraucht wird — im Browser ist das der Unterschied
-    zwischen zwei geladenen Lexikonsätzen und einem.
-    """
+    """Das Sprachpaket zu einem Code."""
     code = (code or STANDARD).lower()
     if code not in CODES:
         code = STANDARD
@@ -130,18 +74,6 @@ def name(code: str | None) -> str:
 # ---------------------------------------------------------------------------
 # Spracherkennung
 # ---------------------------------------------------------------------------
-#
-# Funktionswortprofile, kein Modell, keine Abhängigkeit. Für die Frage
-# "Deutsch oder Englisch" ist das nicht die beste verfügbare Methode, aber es
-# ist die, die ohne Netzwerkaufruf auskommt — und bei einem ganzen Transkript
-# ist sie eindeutig. Bei zwei Sätzen ist sie es nicht, und dann sagt die
-# zurückgegebene Sicherheit das auch.
-#
-# Die Listen sind bewusst kurz und disjunkt: nur Wörter, die in der einen
-# Sprache hochfrequent und in der anderen praktisch abwesend sind. "in", "so",
-# "war", "man", "die", "will", "hat", "am", "an" stehen deshalb nicht drin,
-# obwohl sie deutsch häufig sind — sie sind auch englische Wörter, und ein
-# geteiltes Wort trägt nichts bei.
 
 _DE_MARKER = {
     "und", "ich", "nicht", "ist", "das", "der", "dass", "sich", "mit", "auf",
@@ -161,7 +93,7 @@ _EN_MARKER = {
     "much", "very", "been", "were", "are", "him", "her", "them", "yeah",
 }
 
-# Zeichen, die in der einen Sprache vorkommen und in der anderen nicht.
+# Zeichen, die in der einen Sprache vorkommen.
 _DE_ZEICHEN = re.compile(r"[äöüÄÖÜß]")
 _EN_ZEICHEN = re.compile(r"\b\w+'(s|t|re|ve|ll|d|m)\b", re.I)
 
@@ -172,17 +104,7 @@ SICHER_AB = 0.60          # Anteilsverhältnis, ab dem wir von "sicher" reden
 
 
 def erkenne(text: str) -> tuple[str, float, dict]:
-    """Rät die Sprache eines Textes.
-
-    Gibt ``(code, sicherheit, details)`` zurück. ``sicherheit`` liegt
-    zwischen 0 und 1 und ist die relative Dominanz der Gewinnersprache —
-    nicht eine Wahrscheinlichkeit im statistischen Sinn, sondern eine Zahl,
-    die die Oberfläche in eine Warnung übersetzen kann.
-
-    Bei zu wenig Material wird nicht geraten: der Rückgabewert ist dann die
-    Standardsprache mit Sicherheit 0, und ``ingest.py`` macht daraus eine
-    sichtbare Warnung im Befund statt einer stillen Annahme.
-    """
+    """Rät die Sprache eines Textes."""
     woerter = [w.lower() for w in _WORT_RE.findall(text)]
     n = len(woerter)
     details = {"woerter": n, "de": 0, "en": 0}
@@ -193,10 +115,7 @@ def erkenne(text: str) -> tuple[str, float, dict]:
     de = sum(anzahl for wort, anzahl in zaehler.items() if wort in _DE_MARKER)
     en = sum(anzahl for wort, anzahl in zaehler.items() if wort in _EN_MARKER)
 
-    # Orthografische Zeugen. Umlaute gibt es im Englischen nicht, und
-    # Kontraktionen mit Apostroph gibt es im Deutschen praktisch nicht.
-    # Beide Signale sind schwächer gewichtet als die Wortlisten, weil ein
-    # einzelner Eigenname beide auslösen kann.
+    # Orthografische Zeugen.
     de += 2 * len(_DE_ZEICHEN.findall(text))
     en += 2 * len(_EN_ZEICHEN.findall(text))
 
@@ -210,19 +129,7 @@ def erkenne(text: str) -> tuple[str, float, dict]:
 
 
 def erkenne_je_turn(texte: list[str]) -> tuple[str, float, dict]:
-    """Sprache eines ganzen Transkripts, plus der Anteil der Minderheitssprache.
-
-    Zweisprachige Sitzungen kommen vor — ein Klient, der ein Zitat oder einen
-    Fachbegriff in der anderen Sprache bringt, oder eine Stunde, die
-    tatsächlich zwischen den Sprachen wechselt. Der erste Fall ist harmlos,
-    der zweite macht jede Rate kaputt, und die beiden lassen sich am Anteil
-    unterscheiden. Deshalb wird nicht nur über den Volltext entschieden,
-    sondern auch gezählt, wie viele *Beiträge* der Minderheit zufallen.
-
-    Beiträge unter :data:`MIN_WOERTER` Wörtern zählen dabei nicht mit: "Mhm"
-    ist in beiden Sprachen "Mhm", und eine Sitzung aus kurzen Turns würde
-    sonst als wild gemischt erscheinen.
-    """
+    """Sprache eines ganzen Transkripts, plus der Anteil."""
     volltext = "\n".join(texte)
     code, sicherheit, details = erkenne(volltext)
 
@@ -242,13 +149,6 @@ def erkenne_je_turn(texte: list[str]) -> tuple[str, float, dict]:
 # ---------------------------------------------------------------------------
 # Beschriftung der sprachübergreifenden Reihen
 # ---------------------------------------------------------------------------
-#
-# ``arc.reihen`` legt für jeden Begriff aus VERGLEICHBAR zusätzlich eine
-# Reihe ``vgl_<begriff>`` an, die auch dann durchgeht, wenn ein Klient
-# mitten in der Fallgeschichte die Sprache wechselt. Diese Reihen sind die
-# einzige Stelle im ganzen Werkzeug, an der Zahlen aus zwei Sprachen in einer
-# Kurve stehen — entsprechend steht der Vorbehalt direkt an der Beschriftung
-# und nicht in einer Fussnote.
 
 VERGLEICHBAR_BESCHRIFTUNG: dict[str, tuple[str, str, str]] = {
     "vgl_distanzierung": (
@@ -271,8 +171,5 @@ VERGLEICHBAR_BESCHRIFTUNG: dict[str, tuple[str, str, str]] = {
 }
 
 
-# Ab diesem Anteil fremdsprachiger Beiträge ist eine Sitzung gemischt und
-# nicht mehr "eine Sitzung mit einem Zitat drin". Der Wert ist gesetzt, nicht
-# hergeleitet: unterhalb davon verschiebt eine fremdsprachige Passage die
-# Raten um weniger, als die Sitzung-zu-Sitzung-Streuung ohnehin beträgt.
+# Ab hier gilt die Sitzung als gemischt.
 GEMISCHT_AB = 0.15

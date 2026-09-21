@@ -1,39 +1,10 @@
-"""Englisches Emotionslexikon — auf Differenzierung ausgelegt, nicht auf Valenz.
-
-Derselbe entscheidende Unterschied zu einem Sentiment-Lexikon wie im
-deutschen Modul: hier wird nicht gemessen, *wie gut oder schlecht* es
-jemandem geht, sondern *wie fein er es sagen kann*. Der Weg von "bad" und
-"weird" zu "slighted", "wistful", "relieved" ist das therapeutische Ziel
-selbst, und er ist zählbar.
-
-Die Familien sind **dieselben vierzehn wie im deutschen Modul**, mit
-denselben Schlüsseln und denselben Valenzen. Das ist der einzige Grund,
-warum ein gemischtes Korpus überhaupt eine gemeinsame Affektkurve haben
-kann, und es ist eine inhaltliche Setzung: die Familien sind hier als
-klinische Kategorien gemeint und nicht als Eigenschaften der jeweiligen
-Sprache.
-
-Was dabei **nicht** behauptet wird: dass "Wut" und "anger" dieselbe
-Wortfeldgrösse haben. Haben sie nicht, und deshalb sind die Affektraten
-zwischen den Sprachen nicht vergleichbar. Vergleichbar ist der Verlauf
-innerhalb einer Sprache. Die Oberfläche sagt das an jeder Kurve, die
-Sitzungen beider Sprachen enthält.
-
-Ein englischspezifischer Gewinn, der hier ausgenutzt wird: Englisch hat für
-Affekt eine ungewöhnlich grosse Zahl von Ein-Wort-Adjektiven mittlerer
-Frequenz ("miffed", "wistful", "smitten", "queasy"). Genau das ist das
-Material, das die Granularitätsmessung sehen will.
-"""
+"""Englisches Emotionslexikon."""
 
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
 # Emotionsfamilien
 # ---------------------------------------------------------------------------
-#
-# Familien statt einer flachen Liste, weil die klinisch interessante Frage
-# selten "wie viel Affekt" ist, sondern "welcher Affekt, und seit wann".
-# Ein Wort darf in mehreren Familien stehen (Scham/Schuld überlappen real).
 
 FAMILIEN: dict[str, set[str]] = {
     "angst": {
@@ -163,8 +134,7 @@ FAMILIEN: dict[str, set[str]] = {
     },
 }
 
-# Identisch zum deutschen Modul — die Valenzen gehören zur klinischen
-# Kategorie, nicht zur Sprache.
+# Identisch zum deutschen Modul
 VALENZ = {
     "angst": -1, "trauer": -1, "wut": -1, "scham": -1, "schuld": -1,
     "ekel": -1, "einsamkeit": -1, "neid": -1, "überforderung": -1,
@@ -186,16 +156,6 @@ DIFFERENZIERT: set[str] = set(WORT_ZU_FAMILIE)
 # ---------------------------------------------------------------------------
 # Vager Affekt
 # ---------------------------------------------------------------------------
-#
-# Der Gegenpol. Wörter, die einen Zustand melden, ohne ihn zu benennen.
-# Nicht "schlechter" als differenzierter Affekt — nur undifferenzierter, und
-# genau dieses Verhältnis ist die Messgrösse.
-#
-# Englisch hat hier eine Eigenheit, die die Zahl beeinflusst: "fine", "okay"
-# und "alright" sind als Antwort auf "how are you" praktisch Grussformeln und
-# tragen null Information. Sie stehen trotzdem drin, weil genau ihr *Anteil*
-# an der gesamten Affektsprache die Messgrösse ist — jemand, der eine Stunde
-# lang "fine" und "okay" sagt, ist der Befund.
 
 VAGER_AFFEKT = {
     "bad", "good", "fine", "okay", "ok", "alright", "all right", "so so",
@@ -213,11 +173,6 @@ VAGER_AFFEKT = {
 # ---------------------------------------------------------------------------
 # Körpernaher Affekt
 # ---------------------------------------------------------------------------
-#
-# Manche Klienten sprechen konsequent im Körper statt im Gefühl. Das ist
-# keine Schwäche und keine Alexithymie-Diagnose — es ist eine eigene Spur mit
-# einer eigenen Trajektorie, und die Verschiebung zwischen Körper und Gefühl
-# über die Sitzungen hinweg ist das Interessante daran.
 
 KOERPER_AFFEKT = {
     # Orte
@@ -242,21 +197,6 @@ KOERPER_AFFEKT = {
 # ---------------------------------------------------------------------------
 # Metaphern-Kandidaten
 # ---------------------------------------------------------------------------
-#
-# Konfidenz C, und das steht auch in der UI. Was hier gezählt wird, sind
-# Wörter aus Quelldomänen — ob sie im Satz *metaphorisch* gebraucht wurden,
-# entscheidet das Werkzeug nicht. Der Nutzen liegt nicht in der Zahl, sondern
-# darin, dass man sehen kann, wann ein Bild auftaucht, ob es mutiert und wann
-# es verschwindet. Therapeuten leben von diesen Bildern.
-#
-# markers.py verlangt zusätzlich einen mentalen Bezug im selben Satz (ein
-# Wort aus FAMILIEN, VAGER_AFFEKT oder eine Selbstreferenz), sonst zählt
-# "weather" auch dann, wenn draussen wirklich Regen ist.
-#
-# Die Domänen sind dieselben zehn wie im deutschen Modul. Das ist keine
-# Bequemlichkeit: die konzeptuellen Metaphern, um die es hier geht
-# (LIFE IS A JOURNEY, EMOTIONS ARE CONTAINED SUBSTANCES), sind gerade die,
-# von denen die Metapherntheorie behauptet, dass sie sprachübergreifend sind.
 
 METAPHERN_DOMAENEN = {
     "bewegung": {
@@ -337,21 +277,12 @@ del _dom, _woerter, _w
 # ---------------------------------------------------------------------------
 # Verneinter Affekt
 # ---------------------------------------------------------------------------
-#
-# "I'm not sad" ist kein Trauer-Treffer im selben Sinn wie "I'm sad".
-# markers.py prüft ein kurzes Fenster links auf Negation und zählt solche
-# Treffer getrennt — verworfen werden sie nicht, denn ein Klient, der
-# durchgehend verneinten Affekt produziert, ist selbst ein Befund.
-#
-# Das Fenster ist hier um eins grösser als im Deutschen: englische Negation
-# steht am Hilfsverb ("I don't really feel angry"), deutsche näher am
-# negierten Wort. Drei Tokens würden "don't ... angry" regelmässig verpassen.
 
 NEGATIONS_FENSTER = 4  # Tokens rechts von der Negation
 
 
 # ---------------------------------------------------------------------------
-# Beziehungsbegriffe — Rohstoff für das Soziogramm
+# Beziehungsbegriffe
 # ---------------------------------------------------------------------------
 
 BEZIEHUNGS_BEGRIFFE = {

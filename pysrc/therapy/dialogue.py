@@ -1,25 +1,4 @@
-"""Dialogdynamik: wer redet, wie lange, wie gefragt wird, wer wen aufnimmt.
-
-Eine Vorentscheidung, die alle Zahlen hier betrifft: **Rückkanäle sind keine
-Redebeiträge.** Ein Therapeuten-Turn, der nur aus „mhm“ besteht, ist Zuhören
-und kein Beitrag. Zählt man ihn mit, sieht jede Redeanteilsstatistik falsch
-aus — der Therapeut scheint viel öfter dran zu sein, als er es ist. Sie werden
-deshalb gezählt, aber getrennt geführt.
-
-**Zur Zweisprachigkeit.** Die Kennzahlen hier messen in beiden Sprachen
-dasselbe und heissen deshalb gleich. Was sich unterscheidet, ist das Material,
-mit dem sie gemessen werden: Fragemuster, Rückkanalformeln, Stoppwörter und
-die neun LSM-Kategorien kommen aus dem Sprachpaket der jeweiligen Sitzung.
-
-Eine Zahl verdient dabei eine Warnung, die sonst nirgends steht: **Style
-Matching und lexikalische Aufnahme sind zwischen den Sprachen nicht
-vergleichbar.** Beide rechnen über sprachspezifische Wortmengen — deutsche
-Funktionswörter gegen deutsche, englische gegen englische — und die
-Kategorien haben in den beiden Sprachen unterschiedliche Grösse. Innerhalb
-eines Falles ist die Zahl aussagekräftig. Zwischen einem deutschen und einem
-englischen Fall ist sie es nicht — und bei einem Fall, dessen Sitzungen die
-Sprache wechseln, sagt der Klientenblock das über der Kurve.
-"""
+"""Dialogdynamik: wer redet, wie gefragt wird."""
 
 from __future__ import annotations
 
@@ -32,7 +11,7 @@ from . import sprachen
 from .ingest import KLIENT, THERAPEUT, Sitzung, Turn
 from .tokenize import Token, tokenisiere
 
-# Kompilierte Muster je Sprache, gebaut wenn zum ersten Mal gebraucht.
+# Kompilierte Muster je Sprache, gebaut wenn zum.
 _MUSTER_CACHE: dict[str, dict[str, list]] = {}
 
 
@@ -95,13 +74,7 @@ class Dialogkennzahlen:
 # ---------------------------------------------------------------------------
 
 def ist_rueckkanal(turn: Turn, sprache: str = sprachen.STANDARD) -> bool:
-    """„Mhm“, „yeah“, „right“ — Zuhören, kein Redebeitrag.
-
-    Englisch braucht hier eine spürbar längere Liste als Deutsch: „right“,
-    „okay“, „sure“, „I see“ und „got it“ sind alle rückkanalfähig, und ein
-    englischsprachiger Therapeut, der nur an „mhm“ gemessen wird, sieht
-    gesprächiger aus, als er ist.
-    """
+    """„Mhm“, „yeah“, „right“ — Zuhören, kein Redebeitrag."""
     pak = sprachen.paket(sprache)
     text = turn.text.strip().lower()
     if len(text.split()) > 4:
@@ -122,7 +95,7 @@ def _inhaltswoerter(tokens: list[Token], pak) -> set[str]:
 
 
 def _funktionsprofil(tokens: list[Token], pak) -> dict[str, float]:
-    """Anteil jeder LSM-Kategorie an allen Wörtern des Turns."""
+    """Anteil jeder LSM-Kategorie an allen Wörtern des."""
     woerter = [t.klein for t in tokens if t.ist_wort]
     if not woerter:
         return {}
@@ -135,16 +108,7 @@ def _funktionsprofil(tokens: list[Token], pak) -> dict[str, float]:
 
 def lsm_paar(a: dict[str, float], b: dict[str, float],
              pak=None) -> float:
-    """Language Style Matching für ein Turn-Paar.
-
-    Pro Kategorie 1 - |pA - pB| / (pA + pB + 0.0001), danach gemittelt.
-    Der Mittelwert über Kategorien statt über die Gesamtmenge ist wichtig:
-    sonst erschlägt die Artikelkategorie alle anderen.
-
-    Beide Sprachpakete führen dieselben neun Kategorienamen, damit diese Zahl
-    in einem gemischten Korpus überhaupt in einer Spalte stehen kann. Dass sie
-    dort *vergleichbar* wäre, folgt daraus nicht — siehe den Moduldocstring.
-    """
+    """Language Style Matching für ein Turn-Paar."""
     if not a or not b:
         return 0.0
     pak = pak or sprachen.paket(sprachen.STANDARD)
@@ -156,13 +120,7 @@ def lsm_paar(a: dict[str, float], b: dict[str, float],
 
 
 def frage_typ(text: str, sprache: str = sprachen.STANDARD) -> str | None:
-    """Gibt „offen“, „geschlossen“ oder None zurück.
-
-    Offen schlägt geschlossen: „Wie war das denn, waren Sie da allein?“ ist in
-    der Summe eine offene Frage mit einer Nachfrage dran. Wer sie als
-    geschlossen zählt, macht das Profil systematisch schlechter, als es ist.
-    Dasselbe gilt für „What was that like — were you on your own?“.
-    """
+    """Gibt „offen“, „geschlossen“ oder None zurück."""
     if "?" not in text:
         return None
     muster = _muster(sprachen.paket(sprache))
@@ -269,10 +227,7 @@ def analysiere(sitzung: Sitzung) -> Dialogkennzahlen:
 
 def _turn_paare(turns: list[Turn],
                 sprache: str = sprachen.STANDARD) -> list[tuple[Turn, Turn]]:
-    """Paare aus Klientenbeitrag und unmittelbar folgendem Therapeutenbeitrag.
-
-    Rückkanäle werden übersprungen und nicht als Antwort gewertet.
-    """
+    """Paare aus Klientenbeitrag und unmittelbar folgendem Therapeutenbeitrag."""
     paare: list[tuple[Turn, Turn]] = []
     for i, turn in enumerate(turns):
         if turn.sprecher != KLIENT or ist_rueckkanal(turn, sprache):
@@ -313,9 +268,7 @@ _BESCHRIFTUNG_BASIS = {
             "for ruptures — candidates, not findings."),
 }
 
-# Was sich zwischen den Sprachen an der Beschriftung ändert — und nur das.
-# Die Konstrukte sind dieselben; was sich unterscheidet, ist, wie sicher die
-# Erkennung ist und woran sie hängt.
+# Beschriftung je Sprache.
 _BESCHRIFTUNG_JE_SPRACHE = {
     "en": {
         "fragenOffen": ("Open questions", "B",

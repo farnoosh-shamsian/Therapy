@@ -1,28 +1,4 @@
-"""Erzeugt die synthetischen Beispieltranskripte in ``samples/``.
-
-**In diesem Ordner liegt niemals echtes Klientenmaterial.** Nicht anonymisiert,
-nicht geschwärzt, nicht in einem Zweig. Alles hier ist maschinell aus
-Satzbausteinen erzeugt und beschreibt keine existierende Person.
-
-Zweck der Beispiele:
-
-* Die Offline-Demonstration braucht Material, das mitgeliefert wird, damit die
-  Seite ohne jede Datei des Nutzers etwas zeigen kann.
-* Die Marker brauchen einen Verlauf, an dem man sieht, dass die Arc-Ansicht
-  und die Wechselpunkterkennung tun, was sie sollen. Der Verlauf ist hier
-  absichtlich eingebaut: Distanzierung und Vagheit gehen zurück, Granularität,
-  Kausalität und Einsicht steigen, und zwar mit einem Sprung um Sitzung 9.
-
-**Ein einziger Fall, auf Englisch.** Das ist bewusst das Minimum: ein Fall
-genügt, um Sitzungskarte, Verlauf und Fäden zu zeigen, und jeder weitere hätte
-nur eine weitere Satzbank zu pflegen bedeutet. Was mit einem einzelnen Fall
-nicht zu sehen ist, wird in der Demo auch nicht vorgetäuscht: die Keyness hat
-keinen zweiten Fall, gegen den sie distinktiv sein könnte, sagt das und
-vergleicht den Text stattdessen mit sich selbst. Das ist ehrlicher als ein
-Vergleich gegen erfundene Nachbarn.
-
-Aufruf:  ``python samples/_generator.py``
-"""
+"""Erzeugt die synthetischen Beispieltranskripte in ``samples/``."""
 
 from __future__ import annotations
 
@@ -34,11 +10,6 @@ HIER = Path(__file__).parent
 # ---------------------------------------------------------------------------
 # Satzbausteine
 # ---------------------------------------------------------------------------
-# Drei Phasen. Der Unterschied zwischen ihnen ist das, was die Beispieldaten
-# überhaupt nützlich macht — er ist deshalb grob und deutlich, nicht subtil.
-# Die Bewegung geht von unbenanntem, distanziertem Sprechen zu benanntem,
-# angeeignetem, und zwar mit den Mitteln, die das Englische dafür hat:
-# generisches "you", "should have", "just" und "anyway".
 
 KLIENT_FRUEH = [
     "It was just a strange week, I guess, hard to say really.",
@@ -103,7 +74,7 @@ KLIENT_SPAET = [
     "It struck me that I haven't said “it doesn't matter” in weeks.",
 ]
 
-# Beiträge, die absichtlich einen Faden legen, den der Therapeut fallen lässt.
+# Beiträge, die absichtlich einen Faden legen.
 KLIENT_GELADEN = [
     "When my father died I was fifteen, and I didn't cry. I just kept functioning "
     "and everyone said how brave I was. I don't think I've cried properly since, "
@@ -176,7 +147,7 @@ THERAPEUT_PSYCHOEDUKATION = [
     "Our nervous system doesn't distinguish between then and now.",
 ]
 
-# Themenwechsel des Therapeuten — erzeugt die verlorenen Fäden.
+# Themenwechsel des Therapeuten.
 THERAPEUT_WECHSEL = [
     "How was the rest of the week, work-wise?",
     "Let's come back to sleep for a moment. How is that going?",
@@ -202,14 +173,6 @@ CSV_KOPF = "speaker;text"
 # ---------------------------------------------------------------------------
 # Der Fall
 # ---------------------------------------------------------------------------
-#
-# Der Fall trägt "client"/"session" im Dateinamen. ``ingest.metadaten_aus_name``
-# erkennt genauso "klient"/"sitzung"; die Beispiele zeigen nur eine der beiden
-# Schreibweisen, vorgeschrieben ist keine.
-#
-# Die Sprache steht **nicht** im Dateinamen. Das ist Absicht: die Erkennung
-# soll in der Demo auch wirklich laufen und im Befund sichtbar werden, statt
-# von einem Suffix übersprungen zu werden.
 
 KLIENT = "claire"
 SITZUNGEN = 12
@@ -219,7 +182,7 @@ START = (2024, 1, 9)
 PRAEFIX = "client"
 EINHEIT = "session"
 
-# Gewichtete Pools für den Therapeuten — ein spiegelnder Stil.
+# Gewichtete Pools für den Therapeuten.
 THERAPEUTENPOOL = [
     (THERAPEUT_OFFEN, 0.30), (THERAPEUT_SPIEGELUNG, 0.26),
     (THERAPEUT_VALIDIERUNG, 0.14), (THERAPEUT_DEUTUNG, 0.10),
@@ -233,10 +196,7 @@ THERAPEUTENPOOL = [
 # ---------------------------------------------------------------------------
 
 def _phase(nummer: int, gesamt: int) -> str:
-    # Absichtlich flach geschnitten: der Verlauf soll *einen* deutlichen
-    # Sprung haben (bei ``SPRUNG_AB``), nicht drei. Sonst findet die
-    # Wechselpunkterkennung in der Demo überall etwas und zeigt damit
-    # genau das, wovor arc.HINWEIS warnt.
+    # Absichtlich flach geschnitten:
     if nummer <= max(5, gesamt // 2):
         return "frueh"
     if nummer <= max(7, 2 * gesamt // 3):
@@ -245,7 +205,7 @@ def _phase(nummer: int, gesamt: int) -> str:
 
 
 def _klientenpool(phase: str, nummer: int, sprung_ab: int) -> list[str]:
-    """Mischung der Pools. Der Sprung ab ``sprung_ab`` ist absichtlich abrupt."""
+    """Mischung der Pools."""
     if nummer >= sprung_ab:
         return KLIENT_SPAET * 3 + KLIENT_MITTE
     if phase == "frueh":
@@ -281,8 +241,7 @@ def sitzung(nummer: int, gesamt: int, rng: random.Random,
         saetze = rng.sample(k_pool, k=min(len(k_pool), rng.choice([1, 1, 2, 2, 3])))
         zeilen.append((k_label, " ".join(saetze)))
 
-        # Ein bis zwei geladene Beiträge pro Sitzung, deren Faden fallen gelassen
-        # wird — damit threads.py in der Demo überhaupt etwas findet.
+        # Ein bis zwei geladene Beiträge pro Sitzung.
         if not faden_gelegt and 4 <= i <= anzahl - 4 and rng.random() < 0.55:
             zeilen.append((k_label, rng.choice(KLIENT_GELADEN)))
             zeilen.append((t_label, rng.choice(THERAPEUT_WECHSEL)))
@@ -313,8 +272,7 @@ def als_txt(zeilen: list[tuple[str, str]], kopf: str) -> str:
 
 
 def als_vtt(zeilen: list[tuple[str, str]]) -> str:
-    """Eine Datei im Untertitelformat, damit die Formaterkennung und die
-    zeitabhängigen Kennzahlen in der Demo nicht theoretisch bleiben."""
+    """Eine Datei im Untertitelformat."""
     teile = ["WEBVTT", ""]
     t = 0.0
     for label, text in zeilen:
@@ -361,8 +319,7 @@ def main() -> None:
         datum = _datum(START, nr - 1)
         name = f"{PRAEFIX}-{KLIENT}_{EINHEIT}-{nr:02d}_{datum}"
 
-        # Sitzung 4 als VTT, Sitzung 5 als CSV — die Formatvielfalt gehört
-        # zur Demo, weil das echte Material auch nicht einheitlich ist.
+        # Sitzung 4 als VTT, Sitzung 5 als.
         if nr == 4:
             pfad = HIER / f"{name}.vtt"
             pfad.write_text(als_vtt(zeilen), encoding="utf-8")

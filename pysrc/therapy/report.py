@@ -1,30 +1,8 @@
-"""Der Bericht — ein einziger JSON-Vertrag zwischen Python und Oberfläche.
-
-Alles, was die Oberfläche zeichnet, kommt aus :meth:`Korpus.bericht`. Alles,
-was sie nachlädt (Konkordanz, Kollokationen, Ausschnitte), holt sie über die
-Abfragemethoden weiter unten. Kein zweiter Weg, keine Sonderpfade — sonst
-driftet der Vertrag und in zwei Jahren weiss niemand mehr, welche Zahl woher
-kommt.
-
-Deutsche Schlüssel in Python, kurze Schlüssel im JSON. Die Übersetzung passiert
-genau hier und nirgendwo sonst.
-
-**Zur Zweisprachigkeit.** Der Vertrag hat sich um genau drei Dinge erweitert:
-
-* Jede Sitzung und jeder Klientenblock trägt seine ``sprache``.
-* ``beschriftung`` ist nach Sprachcode geschachtelt, und dazu kommen
-  ``kacheln`` und ``arcReihen`` — welche Zahlen die Oberfläche zeigt, ist
-  jetzt eine sprachliche Entscheidung und steht deshalb hier und nicht im
-  JavaScript.
-* Wo ein gemischtes Korpus eine Zahl unbrauchbar macht, steht eine Warnung
-  neben der Zahl statt in der Dokumentation.
-
-Was sich **nicht** geändert hat: es gibt weiterhin genau einen Weg von den
-Transkripten in die Oberfläche.
-"""
+"""Der Bericht."""
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
@@ -40,12 +18,7 @@ MAX_TREFFER_JE_MARKER = 400      # deckelt die JSON-Grösse, ohne die Klickbarke
 
 @dataclass
 class Korpus:
-    """Der gesamte Zustand einer Sitzung im Browser.
-
-    Lebt im Arbeitsspeicher und nirgends sonst. Wer die Seite neu lädt, fängt
-    von vorn an — das ist kein Mangel, sondern die Eigenschaft, die die ganze
-    Datenschutzarchitektur trägt.
-    """
+    """Der gesamte Zustand einer Sitzung im Browser."""
 
     sitzungen: list[Sitzung] = field(default_factory=list)
     pseudo: Pseudonymisierer = field(default_factory=Pseudonymisierer)
@@ -59,14 +32,7 @@ class Korpus:
     def lade(self, dateien: list[dict], klient_id: str | None = None,
              manuelle_sprecher: dict[str, str] | None = None,
              sprache: str | None = None) -> list[dict]:
-        """Liest Dateien ein. ``dateien`` = ``[{"name": …, "inhalt": …}, …]``.
-
-        Gibt die Befunde zurück — **bevor** irgendetwas analysiert wird, damit
-        der Therapeut zuerst sieht, was überhaupt erkannt wurde. Die erkannte
-        Sprache steht dort mit drin, aus demselben Grund wie die geratene
-        Sprecherzuordnung: sie ist geraten, und wer sie erst hinter den Kurven
-        erfährt, hat die Kurven schon geglaubt.
-        """
+        """Liest Dateien ein, gibt Befunde zurück."""
         neue: list[Sitzung] = []
         befunde: list[Befund] = []
         for datei in dateien:
@@ -85,14 +51,7 @@ class Korpus:
 
     def _notfalls_segmentieren(self, neue: list[Sitzung],
                                datei_anzahl: int) -> list[Sitzung]:
-        """Schneidet einen langen Text ohne Sitzungsmarken in gleiche Stücke.
-
-        Die Entscheidung fällt hier und nicht in ``lies``, weil sie vom ganzen
-        Bestand abhängt: zwölf sauber benannte Dateien sind zwölf Sitzungen und
-        dürfen nicht noch einmal zerschnitten werden. Nur wenn am Ende fast
-        nichts dasteht — weniger als drei Sitzungen — und der Text trotzdem lang
-        ist, war es offenbar ein zusammengeschriebenes Jahr ohne Marken.
-        """
+        """Schneidet einen markenlosen Text in Segmente."""
         bestand = self.sitzungen + neue
         if len(bestand) >= 3 or datei_anzahl > 2:
             return neue
@@ -106,13 +65,7 @@ class Korpus:
         return aufgeteilt
 
     def klient_umbenennen(self, alt: str, neu: str) -> None:
-        """Gibt einem Fall einen Namen.
-
-        Die Fallkennung kam bisher ausschliesslich aus dem Dateinamen. Wer
-        einen Text einfügt, hat keinen Dateinamen und bekam deshalb einen Fall
-        namens „unbekannt“, den er nirgends ändern konnte. Der Name ist reine
-        Beschriftung — er wird nicht analysiert und landet nicht im Export.
-        """
+        """Gibt einem Fall einen Namen."""
         neu = (neu or "").strip()[:40] or "unbekannt"
         if neu == alt:
             return
@@ -132,18 +85,7 @@ class Korpus:
 
     # -- Pseudonymisierung ----------------------------------------------
     def namensvorschlaege(self) -> list[dict]:
-        """Namenskandidaten zur einmaligen Bestätigung durch den Therapeuten.
-
-        Je Sprache ein eigener Durchgang, danach zusammengeführt. Ein
-        gemeinsamer Durchgang über ein gemischtes Korpus würde den Sprachen
-        ihre jeweiligen Substantive gegenseitig als Personennamen
-        unterschieben — „Rat“, „Gift“, „Hut“ und „Bald“ sind in der einen
-        Sprache gewöhnliche Wörter und in der anderen nichts davon.
-
-        Beim Zusammenführen gewinnt der höhere Sicherheitswert: ein Name, den
-        der eine Durchgang sicher erkennt und der andere gar nicht, ist ein
-        erkannter Name und kein strittiger.
-        """
+        """Namenskandidaten zur einmaligen Bestätigung durch den Therapeuten."""
         texte_je_sprache: dict[str, list[str]] = defaultdict(list)
         for sitzung in self.sitzungen:
             code = getattr(sitzung, "sprache", sprachen.STANDARD)
@@ -165,13 +107,19 @@ class Korpus:
                                  key=lambda k: (-k.sicherheit, -k.haeufigkeit, k.name))
         return [k.als_dict() for k in self.kandidaten]
 
-    def pseudonymisiere(self, bestaetigte: list[dict] | None = None) -> dict:
+    def pseudonymisiere(self, bestaetigte: list[dict] | None = None,
+                        ersetzen: bool = True) -> dict:
         """Ersetzt bestätigte Namen. Läuft vor jeder Analyse.
 
-        ``bestaetigte`` = ``[{"name": "Anna", "rolle": "Schwester"}, …]``.
-        Ohne Argument werden alle Kandidaten mit Sicherheit ≥ 0.8 genommen —
-        die Bestätigung bleibt trotzdem der vorgesehene Weg.
+        ``ersetzen=False``: die Namen bleiben im Text stehen und gehen als
+        Klarnamen ins Soziogramm — für Fälle, in denen der Datenschutz schon
+        ausserhalb des Werkzeugs geregelt ist. Erkannt wird trotzdem.
         """
+        ersetzen = bool(ersetzen)
+        if ersetzen != self.pseudo.ersetzen:
+            # Moduswechsel: die Abbildung wird neu aufgebaut. Was in einem
+            # früheren Durchgang schon ersetzt wurde, bleibt ersetzt.
+            self.pseudo = Pseudonymisierer(ersetzen=ersetzen)
         if bestaetigte is None:
             if not self.kandidaten:
                 self.namensvorschlaege()
@@ -184,20 +132,12 @@ class Korpus:
         return {"ersetzteTurns": geaendert, **self.pseudo.zusammenfassung()}
 
     def _betroffene(self, sid: str) -> list[Sitzung]:
-        """Die Sitzungen zu einer Kennung — Teilsitzungen eingeschlossen.
-
-        Der Befund steht je *Datei*, die Sitzungen stehen je Abschnitt: ein
-        Text mit Sitzungsmarken zerfällt in ``datei.txt#1``, ``#2`` … Ein Knopf
-        in der Befundzeile meint darum die ganze Datei und nicht nur den
-        Abschnitt, dessen Kennung zufällig der Dateiname ist — sonst griffe er
-        genau dann ins Leere, wenn jemand ein Jahr am Stück einfügt, also im
-        Normalfall dieses Werkzeugs.
-        """
+        """Die Sitzungen zu einer Kennung."""
         return [s for s in self.sitzungen
                 if s.sid == sid or s.sid.startswith(f"{sid}#")]
 
     def sprecher_tauschen(self, sid: str) -> None:
-        """Dreht T und K um — für den geratenen und den falsch gelabelten Fall."""
+        """Dreht T und K um."""
         befunde = []
         for sitzung in self._betroffene(sid):
             for turn in sitzung.turns:
@@ -207,21 +147,14 @@ class Korpus:
                     turn.sprecher = THERAPEUT
             if sitzung.befund is not None and sitzung.befund not in befunde:
                 befunde.append(sitzung.befund)
-        # Die Abschnitte einer Datei teilen sich *einen* Befund. Ohne diese
-        # Sammlung stünde die Notiz unten so oft da, wie der Text Abschnitte
-        # hat.
+        # Die Abschnitte einer Datei teilen sich *einen*.
         for befund in befunde:
             befund.sprecher_quelle = "manuell"
             befund.warnungen.append("Speakers were swapped by hand.")
         self._analysiert = False
 
     def sprache_setzen(self, sid: str, code: str) -> None:
-        """Überschreibt die erkannte Sprache einer Sitzung von Hand.
-
-        Das Gegenstück zu :meth:`sprecher_tauschen`: die Erkennung ist eine
-        Heuristik, also braucht sie einen Knopf, der sie in einem Klick
-        korrigiert. Die Analyse wird danach neu gerechnet.
-        """
+        """Überschreibt die erkannte Sprache einer Sitzung von."""
         if code not in sprachen.CODES:
             return
         befunde = []
@@ -303,15 +236,7 @@ class Korpus:
         }
 
     def _beschriftung(self) -> dict:
-        """Beschriftung, Kacheln und Arc-Reihen — je Sprache.
-
-        Die Oberfläche schlägt hier mit dem Sprachcode der Sitzung nach, die
-        sie gerade zeichnet. Dass die Auswahl der Kacheln hier steht und nicht
-        im JavaScript, ist der eigentliche Umbau: welche Zahlen ein deutscher
-        und ein englischer Fall zeigen, ist nicht dieselbe Liste, und eine
-        Ansicht, die das fest verdrahtet, zeigt in der anderen Sprache leere
-        Kacheln.
-        """
+        """Beschriftung, Kacheln und Arc-Reihen — je Sprache."""
         marker: dict[str, dict] = {}
         dialog: dict[str, dict] = {}
         familien: dict[str, dict] = {}
@@ -358,20 +283,13 @@ class Korpus:
         punkte = arc.wechselpunkte(index_werte, nummern) if index_werte else []
         saetze = [arc.beschreibe(p, nummern) for p in punkte]
 
-        # Keyness nur gegen Klienten derselben Sprache. Gegen eine Referenz in
-        # einer anderen Sprache misst das Log-Likelihood den Sprachunterschied
-        # und sonst nichts — jedes deutsche Wort wäre "distinktiv", weil es im
-        # englischen Vergleichskorpus null mal vorkommt. Lieber eine leere
-        # Liste mit Begründung als eine volle ohne Bedeutung.
+        # Keyness nur gegen Klienten derselben Sprache.
         vergleichbare = [i for i in alle_indizes
                          if i is not index and i.sprache == index.sprache]
         referenz, referenz_n = lexical.referenzfrequenzen(
             vergleichbare + [index], ausser=index)
         keyness = index.keyness(referenz, referenz_n) if referenz_n else []
-        # Der Hinweis hing vorher daran, dass es *mehrere* Indizes gibt — wer
-        # genau einen Fall lud, bekam eine leere Liste und kein Wort dazu. Es
-        # gibt jetzt immer eine Begründung, und für den Fall ohne zweiten
-        # Klienten gibt es ausserdem zwei Achsen, die keinen brauchen.
+        # Der Hinweis hing vorher daran, dass es.
         if referenz_n:
             keyness_hinweis = None
         elif len(alle_indizes) > 1:
@@ -481,20 +399,14 @@ class Korpus:
             "ttr": {sprecher: index.ttr(sitzung, sprecher)
                     for sprecher in (KLIENT, THERAPEUT)},
             "neuesVokabular": index.neues_vokabular(sitzung, KLIENT),
-            # Wovon war an diesem Tag die Rede und sonst nicht — die Keyness-
-            # Achse, die keinen zweiten Klienten braucht.
+            # Wovon war an diesem Tag die Rede.
             "keyness": index.keyness_sitzung(sitzung, KLIENT),
             "faeden": [f.als_dict() for f in threads.finde(sitzung)],
             "affektverlauf": self._affektverlauf(sitzung),
         }
 
     def _affektverlauf(self, sitzung: Sitzung) -> list[list]:
-        """Affektdichte des Klienten über den Verlauf der Sitzung.
-
-        Pro Beitrag, nicht geglättet. Die Sitzung hat typischerweise eine
-        Form — Aufwärmen, Kern, Abkühlen — und sie ist im Rohbild sichtbarer
-        als in einer Kurve, die man schöngerechnet hat.
-        """
+        """Affektdichte über den Verlauf der Sitzung."""
         code = getattr(sitzung, "sprache", sprachen.STANDARD)
         punkte: list[list] = []
         for turn in sitzung.turns:
@@ -528,10 +440,7 @@ class Korpus:
 
     def wortverlauf(self, wort: str, klient: str,
                     sprecher: str = KLIENT) -> dict:
-        """Ein Wort über die Sitzungen. Wird bei jeder Eingabe neu gerechnet
-        statt für jedes Wort im Bericht mitgeschickt — der Bericht wäre sonst
-        um den ganzen Wortschatz grösser, für eine Kurve, die man meistens
-        nicht anschaut."""
+        """Ein Wort über die Sitzungen."""
         self.analysiere()
         index = self.indizes.get(klient)
         return index.wortverlauf(wort, sprecher) if index else {}
@@ -544,13 +453,7 @@ class Korpus:
 
     def belege(self, klient: str, marker: str, sprecher: str = KLIENT,
                sid: str | None = None, grenze: int = 120) -> list[dict]:
-        """Alle Belegstellen eines Markers, fertig als Textausschnitte.
-
-        Das ist der Weg von einer Zahl in der Oberfläche zurück zu den Zeilen,
-        die sie erzeugt haben. Bewusst eine einzige Abfrage statt hundert
-        Einzelaufrufen über die Sprachgrenze — sonst wird der Klick auf eine
-        Kachel im Browser spürbar langsam, und dann klickt niemand mehr.
-        """
+        """Alle Belegstellen eines Markers, fertig als Textausschnitte."""
         self.analysiere()
         index = self.indizes.get(klient)
         if index is None:
@@ -574,7 +477,7 @@ class Korpus:
         return ergebnis
 
     def turns(self, sid: str, von: int = 0, bis: int = 10_000) -> list[dict]:
-        """Rohansicht eines Sitzungsausschnitts — für den Sprung aus einer Zahl."""
+        """Rohansicht eines Sitzungsausschnitts."""
         for sitzung in self.sitzungen:
             if sitzung.sid != sid:
                 continue
@@ -586,35 +489,98 @@ class Korpus:
         return []
 
     def namenstabelle(self) -> list[dict]:
-        """Nur für die Anzeige im Browser des Therapeuten. Nie im Export."""
+        """Nur für die Anzeige im Browser des."""
         return self.pseudo.tabelle_fuer_anzeige()
 
     def export(self) -> dict:
-        """Was den Browser verlassen darf, wenn er es ausdrücklich anstösst.
-
-        Ohne Klarnamen, ohne Volltext — Kennzahlen, Verläufe und Belegstellen
-        als Koordinaten. Wer die Belege lesen will, braucht die Transkripte,
-        und die hat nur er.
-        """
+        """Was den Browser verlassen darf, wenn er."""
         bericht = self.bericht()
-        for klient in bericht["klienten"]:
-            for sitzung in klient["sitzungen"]:
+        for i, klient in enumerate(bericht["klienten"]):
+            fall = f"Case {_buchstabe(i)}"
+            klient["id"] = fall
+            sids = {}
+            for nr, sitzung in enumerate(klient["sitzungen"], start=1):
+                nummer = sitzung.get("nr") or nr
+                sids[sitzung["sid"]] = f"{fall} · session {nummer}"
+                sitzung["dateiname"] = None
+                sitzung["titel"] = f"Session {nummer}"
+                befund = sitzung.get("befund")
+                if befund:
+                    befund["dateiname"] = None
+                    # Die Warnung zur geratenen Sprecherzuordnung zitiert die
+                    befund["warnungen"] = [_ohne_labels(w, befund["labels"])
+                                           for w in befund["warnungen"]]
+                    befund["labels"] = []
+                # Die Fragebelege sind wörtliche Therapeutensätze.
+                sitzung["dialog"].pop("frageBelege", None)
                 for sprecher_block in sitzung["marker"].values():
                     sprecher_block.pop("treffer", None)
-            klient["faeden"] = [{k: v for k, v in f.items() if k != "inhalt"}
-                                for f in klient["faeden"]]
+                sitzung["faeden"] = [_ohne_inhalt(f) for f in sitzung["faeden"]]
+            klient["faeden"] = [_ohne_inhalt(f) for f in klient["faeden"]]
+            bericht["klienten"][i] = _sids_ersetzen(klient, sids)
         bericht["export"] = {
-            "hinweis": ("Contains no real names and no transcript text. The "
-                        "placeholder-to-name mapping exists only in your browser "
-                        "and is forgotten when the page reloads."),
+            "hinweis": (_EXPORT_HINWEIS if self.pseudo.ersetzen
+                        else _EXPORT_HINWEIS_KLARNAMEN),
             "pseudonyme": self.pseudo.zusammenfassung(),
             "sprachen": self._sprachblock(),
         }
         return bericht
 
 
+_EXPORT_HINWEIS = (
+    "No transcript lines, no filenames, no case name, and no name you "
+    "confirmed: those became “Person A” before anything was computed, and "
+    "the mapping back exists only in your browser tab, is never stored, and is "
+    "forgotten when the page reloads. What the file does contain is single "
+    "words counted out of the text — keyword and emotion-vocabulary lists. A "
+    "name you did *not* confirm was never replaced anywhere and can therefore "
+    "appear in those lists.")
+
+_EXPORT_HINWEIS_KLARNAMEN = (
+    "Names were kept: you asked for the transcripts to be analysed under the "
+    "real names, so nothing was replaced. This file carries no transcript "
+    "lines, no filenames and no case name, but the people named in the "
+    "sessions appear by name in the sociogram, and any name occurring often "
+    "enough appears in the keyword and emotion-vocabulary lists. Treat the "
+    "file as personal data.")
+
+_EXPORT_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def _buchstabe(n: int) -> str:
+    """Fallkennung im Export."""
+    if n < 26:
+        return _EXPORT_ALPHABET[n]
+    return _EXPORT_ALPHABET[n // 26 - 1] + _EXPORT_ALPHABET[n % 26]
+
+
+def _sids_ersetzen(zweig, sids: dict[str, str]):
+    """Ersetzt jede Sitzungskennung durch eine neutrale."""
+    if isinstance(zweig, dict):
+        return {k: _sids_ersetzen(v, sids) for k, v in zweig.items()}
+    if isinstance(zweig, list):
+        return [_sids_ersetzen(v, sids) for v in zweig]
+    if isinstance(zweig, str):
+        return sids.get(zweig, zweig)
+    return zweig
+
+
+def _ohne_labels(warnung: str, labels: list[str]) -> str:
+    """Streicht die zitierten Sprecherlabels aus einer Befundwarnung."""
+    for label in sorted(labels or [], key=len, reverse=True):
+        if len(label) >= 3:
+            muster = r"(?<!\w)" + re.escape(label) + r"(?!\w)"
+            warnung = re.sub(muster, "…", warnung)
+    return warnung
+
+
+def _ohne_inhalt(faden: dict) -> dict:
+    """Ein Faden ohne seine Inhaltswörter."""
+    return {k: v for k, v in faden.items() if k != "inhalt"}
+
+
 # ---------------------------------------------------------------------------
-# Geltungshinweise — gehören in die Oberfläche, nicht in ein Dokument
+# Geltungshinweise
 # ---------------------------------------------------------------------------
 
 SCHLUESSELWORT_HINWEIS = (
@@ -625,11 +591,7 @@ SCHLUESSELWORT_HINWEIS = (
 
 
 def _haeufigste(index, sprecher: str, grenze: int) -> list[tuple[str, int]]:
-    """Häufigste Inhaltslemmata — der Einstieg in den Wortverlauf.
-
-    Keyness zeigt das Besondere, aber man sucht auch das Naheliegende: wer
-    „Mutter“ eingeben will, soll es anklicken können statt es zu tippen.
-    """
+    """Häufigste Inhaltslemmata."""
     stopp = index.stoppwoerter
     return [(w, n) for w, n in index.lemma_frequenz[sprecher].most_common()
             if w not in stopp and len(w) >= 3][:grenze]

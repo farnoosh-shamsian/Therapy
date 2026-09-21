@@ -1,31 +1,10 @@
-"""Deutsche Marker-Lexika.
-
-Konventionen für dieses Modul:
-
-* Alle Einträge sind **kleingeschrieben**. Der Abgleich passiert gegen die
-  kleingeschriebene Wortform (nicht gegen das Lemma), ausser es steht anders
-  dabei. Deutsche Funktionswörter flektieren wenig genug, dass Vollformen-
-  listen hier ehrlicher sind als ein Lemmatisierer, dem man ansieht, dass er
-  geraten hat.
-* Mehrwortausdrücke stehen mit einfachem Leerzeichen und werden gegen den
-  normalisierten Turn-Text gematcht.
-* Jede Liste, die aus einem englischsprachigen Instrument adaptiert wurde,
-  sagt das dazu — mitsamt dem, was bewusst *nicht* drin ist.
-"""
+"""Deutsche Marker-Lexika."""
 
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
-# 1. man / ich — der grammatische Notausgang aus der ersten Person
+# Register
 # ---------------------------------------------------------------------------
-#
-# "Man fühlt sich dann halt schlecht" statt "ich fühle mich schlecht".
-# Das ist im Deutschen der sauberste Distanzierungsmarker, den es gibt, und er
-# hat im Englischen kein Gegenstück ("one" ist im gesprochenen Englisch tot).
-#
-# Vorsicht bei den obliquen Formen: "einem" und "einen" sind als Indefinit-
-# pronomen von "man" nicht vom unbestimmten Artikel zu trennen, ohne zu parsen.
-# Sie werden deshalb getrennt gezählt und gehen nicht in die Hauptquote ein.
 
 MAN_NOMINATIV = {"man"}
 MAN_OBLIQUE_AMBIG = {"einem", "einen"}  # gezählt, aber nicht in der Quote
@@ -36,8 +15,7 @@ ICH_POSSESSIV = {
     "mein", "meine", "meiner", "meines", "meinem", "meinen", "meins",
 }
 
-# Die zweite Person tauchte in Klientenrede als Distanzierung auf
-# ("du denkst dann, das geht nie vorbei") — generisches "du".
+# Generisches „du“: auch Distanzierung.
 DU_GENERISCH = {"du", "dir", "dich", "dein", "deine", "deinem", "deinen"}
 
 WIR_FORMEN = {"wir", "uns", "unser", "unsere", "unserem", "unseren", "unserer"}
@@ -46,12 +24,6 @@ WIR_FORMEN = {"wir", "uns", "unser", "unsere", "unserem", "unseren", "unserer"}
 # ---------------------------------------------------------------------------
 # 2. Konjunktiv II
 # ---------------------------------------------------------------------------
-#
-# Irrealis. Im Deutschen morphologisch fast geschenkt: die Umlautformen der
-# starken Verben sind eindeutig. Die schwachen Verben sind es nicht — bei
-# "sollte", "wollte", "machte" ist Präteritum und Konjunktiv II formgleich.
-# Die werden separat gezählt und in der UI separat ausgewiesen, statt sie
-# stillschweigend in die Hauptzahl zu mischen.
 
 KONJUNKTIV2_EINDEUTIG = {
     # sein / haben / werden
@@ -92,7 +64,7 @@ KONJUNKTIV2_EINDEUTIG = {
     "hülfe", "hälfe",
 }
 
-# Formgleich mit dem Präteritum. Nicht entscheidbar ohne Kontextanalyse.
+# Formgleich mit Präteritum. Separat gezählt.
 KONJUNKTIV2_AMBIG = {
     "sollte", "sollten", "solltest", "solltet",
     "wollte", "wollten", "wolltest", "wolltet",
@@ -105,16 +77,9 @@ KONJUNKTIV2_AMBIG = {
 # ---------------------------------------------------------------------------
 # 3. Bedauern / Regret
 # ---------------------------------------------------------------------------
-#
-# Die wertvollsten Einzeltreffer im ganzen Werkzeug. Als Muster, nicht als
-# Wortliste — die Konstruktion trägt die Bedeutung, nicht das Einzelwort.
-# Syntax hier: einfache Platzhalter-Sprache, die in markers.py in echte
-# reguläre Ausdrücke übersetzt wird.
-#   *   = beliebig viel Text (max. ~40 Zeichen, damit es im Satz bleibt)
-#   |   = Alternative innerhalb einer Gruppe (…)
 
 REGRET_MUSTER = [
-    # "hätte ich nur früher …", "wenn ich doch bloß …"
+    # "hätte ich nur früher …", "wenn ich.
     (r"\bhätte ich (nur|doch|bloß|blos|mal)\b", "hätte ich nur"),
     (r"\bwenn ich (nur|doch|bloß|blos)\b", "wenn ich doch"),
     (r"\bwäre ich (nur|doch|bloß|blos)\b", "wäre ich nur"),
@@ -136,16 +101,6 @@ REGRET_MUSTER = [
 # ---------------------------------------------------------------------------
 # 4. Modalpartikeln
 # ---------------------------------------------------------------------------
-#
-# Das Deutsche trägt hier, was das Englische in den Tonfall legt. "Das ist halt
-# so" ist Resignation in drei Wörtern, und keine Übersetzung rettet das.
-#
-# Bekannte Schwäche, offen benannt: alle diese Wörter haben eine nicht-
-# partikelhafte Lesart ("nur" als Fokuspartikel, "ja" als Antwort, "eben" als
-# Zeitadverb). Ohne Parser ist das nicht sauber zu trennen. Die Zahlen sind
-# deshalb als *Profil über die Zeit* zu lesen, nicht als absolute Häufigkeit —
-# der systematische Fehler ist über Sitzungen hinweg konstant und kürzt sich
-# in der Trajektorie heraus.
 
 PARTIKEL_GRUPPEN = {
     "resignativ": ["halt", "eben", "nun mal", "nunmal", "sowieso", "ohnehin", "eh"],
@@ -155,29 +110,13 @@ PARTIKEL_GRUPPEN = {
     "abtönend": ["einfach", "mal", "denn", "etwa", "auch", "ruhig"],
 }
 
-# "ja" als Antwortpartikel am Turn-Anfang ist keine Modalpartikel.
+# „ja“ am Turn-Anfang zählt nicht.
 PARTIKEL_POSITION_AUSNAHMEN = {"ja", "doch", "schon", "eben"}
 
 
 # ---------------------------------------------------------------------------
 # 5. Absolutismen
 # ---------------------------------------------------------------------------
-#
-# Adaptiert nach Al-Mosaiwi & Johnstone (2018), "In an Absolute State".
-# Das Original ist ein englisches Instrument. Zwei Dinge daran übersetzen sich
-# nicht, und beide sind hier korrigiert:
-#
-#   (a) Die englische Liste enthält Intensivierer ("totally", "completely"),
-#       die im gesprochenen Deutsch reine Umgangssprache sind. "Total nett",
-#       "voll gut", "ganz okay" sind kein absolutistisches Denken, sondern
-#       Jugendsprache und Norddeutsch. Sie stehen unten in AUSGESCHLOSSEN und
-#       werden bewusst NICHT gezählt.
-#   (b) Deontische Modalität ("muss", "sollte") ist im Deutschen viel häufiger
-#       grammatikalisiert als im Englischen. Sie bekommt eine eigene Gruppe
-#       (ZWANG) statt in die Absolutismen zu wandern.
-#
-# Stufe 1 = quantifizierend/temporal absolut, der belastbare Kern.
-# Stufe 2 = graduell absolut, schwächer, separat ausgewiesen.
 
 ABSOLUT_STUFE1 = {
     "immer", "nie", "niemals", "nichts", "niemand", "keiner", "keine", "keines",
@@ -196,7 +135,7 @@ ABSOLUT_STUFE2 = {
     "überhaupt nichts", "gar nichts", "gar keine", "gar kein",
 }
 
-# Bewusst ausgeschlossen. Diese Liste ist Teil der Methode, nicht ein Rest.
+# Bewusst ausgeschlossen: Umgangssprache, kein Absolutismus.
 ABSOLUT_AUSGESCHLOSSEN = {
     "total", "voll", "ganz", "echt", "richtig", "mega", "super", "ziemlich",
     "krass", "extrem", "wahnsinnig", "unheimlich", "furchtbar", "schrecklich",
@@ -215,9 +154,6 @@ ZWANG = {
 # ---------------------------------------------------------------------------
 # 6. Hecken und Vagheit
 # ---------------------------------------------------------------------------
-#
-# Steigt unter Bedrohung, in der Nähe von Brüchen und rund um Vermiedenes.
-# Das ist der Marker, der sich am ehesten *innerhalb* einer Sitzung lohnt.
 
 HECKEN = {
     "irgendwie", "irgendwas", "irgendwo", "irgendwann", "irgendein", "irgendeine",
@@ -236,9 +172,6 @@ HECKEN = {
 # ---------------------------------------------------------------------------
 # 7. Kausalität und Einsicht
 # ---------------------------------------------------------------------------
-#
-# Der Anstieg dieser beiden über eine Therapie hinweg gehört zu den besser
-# replizierten sprachlichen Befunden überhaupt (Pennebaker-Linie).
 
 KAUSAL = {
     "weil", "denn", "deshalb", "deswegen", "darum", "daher", "folglich",
@@ -263,9 +196,6 @@ EINSICHT = {
 # ---------------------------------------------------------------------------
 # 8. Zeitliche Orientierung
 # ---------------------------------------------------------------------------
-#
-# Grübeln lebt in der Vergangenheit, Angst in der Zukunft. Die Tempusverteilung
-# kommt aus markers.py (Hilfsverb-Heuristik), die Adverbien von hier.
 
 ZEIT_ADVERBIEN = {
     "vergangenheit": {
@@ -309,8 +239,7 @@ NEGATION = {
     "unmöglich", "nix", "gar nicht", "überhaupt nicht", "auf keinen fall",
 }
 
-# Präfixe, die eine Eigenschaft verneinen ("unfähig", "wertlos", "sinnlos").
-# Nur mit Mindestlänge, sonst fängt man "Unterschied" und "Losung" mit ein.
+# Verneinende Präfixe, mit Mindestlänge.
 NEGATIV_PRAEFIXE = ("un", "miss", "nicht")
 NEGATIV_SUFFIXE = ("los", "frei", "unfähig")
 
@@ -318,24 +247,21 @@ NEGATIV_SUFFIXE = ("los", "frei", "unfähig")
 # ---------------------------------------------------------------------------
 # 10. Passiv
 # ---------------------------------------------------------------------------
-#
-# "Da wurde mir gesagt", "das ist mir angetan worden". Dinge, die dem Selbst
-# geschehen. Erkennung über werden-Hilfsverb + Partizip-II-Morphologie.
 
 PASSIV_HILFSVERB = {
     "wurde", "wurdest", "wurden", "wurdet", "wird", "werde", "wirst", "werden",
     "werdet", "worden", "würde", "würden",
 }
 
-# Untrennbare Präfixe: Partizip II ohne "ge-" ("verloren", "bekommen").
+# Partizip II ohne „ge-“.
 UNTRENNBARE_PRAEFIXE = ("be", "ver", "er", "ent", "emp", "zer", "miss", "ge")
 
-# Formen, die wie Passiv aussehen, aber Futur oder Vollverb sind.
+# Sieht aus wie Passiv, ist keins.
 PASSIV_AUSNAHMEN = {"werden", "wird"}  # nur relevant ohne folgendes Partizip
 
 
 # ---------------------------------------------------------------------------
-# 11. Intensivierer (eigene Spur, nicht Absolutismus)
+# 11. Intensivierer (eigene Spur)
 # ---------------------------------------------------------------------------
 
 INTENSIVIERER = set(ABSOLUT_AUSGESCHLOSSEN) | {
@@ -345,12 +271,8 @@ INTENSIVIERER = set(ABSOLUT_AUSGESCHLOSSEN) | {
 
 
 # ---------------------------------------------------------------------------
-# Register — was markers.py abläuft
+# Register
 # ---------------------------------------------------------------------------
-#
-# Jeder Eintrag: (schlüssel, anzeige, art, quelle, konfidenz)
-# art: "wort" = Vollformabgleich, "phrase" = n-Gramm im Turn-Text,
-#      "muster" = regulärer Ausdruck, "morph" = eigene Funktion in markers.py
 
 WORTLISTEN = {
     "man": MAN_NOMINATIV,

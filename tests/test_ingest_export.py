@@ -1,15 +1,4 @@
-"""Transkripte, wie Dokumentations-Assistenten sie herausgeben.
-
-Der Anlass ist konkret: die Transkripte kommen aus VIA, und VIA exportiert
-Word, PDF, HTML, Zwischenablage. Zwei Dinge daran waren hier bisher nicht
-vorgesehen — HTML überhaupt, und der Sprecher auf einer *eigenen* Zeile, wie
-ihn ein Absatzlayout setzt.
-
-Die Tests prüfen deshalb nicht ein Format, sondern eine Form: Rolle oben,
-Text darunter, egal ob als Word-Absatz, als ``<p>`` oder als eingefügter Text.
-Und sie prüfen, dass der unstrukturierte Weg dabei heil bleibt — wer einen
-Fliesstext einfügt, darf nicht plötzlich erfundene Sprecher bekommen.
-"""
+"""Transkripte, wie Dokumentations-Assistenten sie herausgeben."""
 
 from __future__ import annotations
 
@@ -44,7 +33,7 @@ def test_sprecher_auf_eigener_zeile_wird_erkannt():
     s = lies_eine("via.txt", BLOCK)
     assert [t.sprecher for t in s.turns] == [THERAPEUT, KLIENT, THERAPEUT, KLIENT]
     assert s.befund.sprecher_quelle == "labels"
-    # Der Name selbst darf nicht im gesprochenen Text landen.
+    # Der Name selbst darf nicht im gesprochenen.
     assert s.turns[0].text == "Wie war die Woche?"
     assert "nachts" in s.turns[1].text
 
@@ -67,27 +56,22 @@ def test_sprecher_zeile_mit_doppelpunkt_und_zeitstempel():
 
 
 def test_anonyme_sprecher_auf_eigener_zeile_werden_geraten_und_gemeldet():
-    # Wer diarisiert, aber die Rollen nicht kennt, schreibt "Sprecher 1/2".
+    # Wer diarisiert.
     text = ("Sprecher 1\nMhm.\n\n"
             "Sprecher 2\nEs war eine wirklich schwierige Woche für mich "
             "und ich habe sehr viel darüber nachgedacht.\n")
     s = lies_eine("diar.txt", text)
     assert s.befund.sprecher_quelle == "geraten"
     assert any("guessed" in w for w in s.befund.warnungen)
-    # Wer weniger redet, gilt als Therapeut — die benannte Regel.
+    # Wer weniger redet, gilt als Therapeut
     assert s.turns[0].sprecher == THERAPEUT
     assert s.turns[1].sprecher == KLIENT
 
 
-# --- Der unstrukturierte Weg muss heil bleiben ----------------------------
+# --- Der unstrukturierte Weg muss heil bleiben.
 
 def test_fliesstext_bekommt_keine_erfundenen_sprecher():
-    """Der eigentliche Prüfstein der neuen Regel.
-
-    Kurze Zeilen, die zufällig wie ein Name aussehen, dürfen nicht zu
-    Sprechern werden — sonst zeigt das Werkzeug Redeanteile für Personen,
-    die es sich ausgedacht hat.
-    """
+    """Der eigentliche Prüfstein der neuen Regel."""
     text = ("Ich weiss nicht.\n"
             "Ja.\n"
             "Vielleicht.\n"
@@ -101,7 +85,7 @@ def test_fliesstext_bekommt_keine_erfundenen_sprecher():
 
 
 def test_einzelbuchstabe_auf_eigener_zeile_ist_kein_sprecher():
-    # "T" und "K" sind gültige Kürzel — aber nur mit Doppelpunkt.
+    # "T" und "K" sind gültige Kürzel
     s = lies_eine("liste.txt", "T\nK\nP\nEs ging um die Woche davor.\n")
     assert s.befund.labels_gefunden == []
 
@@ -149,7 +133,7 @@ def test_html_export_wird_gelesen():
     s = lies_eine("export.html", HTML)
     assert s.befund.format == "html"
     assert [t.sprecher for t in s.turns] == [THERAPEUT, KLIENT, THERAPEUT]
-    # Tags stehen nicht im gesprochenen Text, Entitäten sind aufgelöst.
+    # Tags stehen nicht im gesprochenen Text, Entitäten.
     assert s.turns[0].text == "Wie war die Woche?"
     assert s.turns[1].text == "Schwierig & anstrengend."
     assert not any("<" in t.text for t in s.turns)
@@ -170,14 +154,9 @@ def test_amp_wird_zuletzt_aufgeloest():
 
 
 # --- Der Sprechertausch ---------------------------------------------------
-#
-# Er stand seit je in report.py und war von der Oberflaeche aus nie erreichbar.
-# Jetzt gibt es den Knopf — und damit muss er auch den Normalfall treffen: eine
-# Datei, die in mehrere Sitzungen zerfaellt.
 
 def _abschnitt(nr: str, datum: str) -> str:
-    # Mindestens MIN_TURNS_JE_ABSCHNITT Turns, sonst haengt der Abschnitt am
-    # vorigen und die Datei zerfaellt gar nicht erst.
+    # Mindestens MIN_TURNS_JE_ABSCHNITT Turns.
     return (
         f"--- Sitzung {nr} - {datum} ---\n"
         "Sprecher 1\nMhm.\n\n"
@@ -200,8 +179,7 @@ def test_tausch_erreicht_alle_abschnitte_einer_datei():
     assert len(korpus.sitzungen) == 2
 
     vorher = [[t.sprecher for t in s.turns] for s in korpus.sitzungen]
-    # Die Befundzeile kennt nur den Dateinamen, die Sitzungen heissen
-    # "jahr.txt#1" und "#2" — der Knopf muss trotzdem beide treffen.
+    # Die Befundzeile kennt nur den Dateinamen.
     korpus.sprecher_tauschen("jahr.txt")
     nachher = [[t.sprecher for t in s.turns] for s in korpus.sitzungen]
 
@@ -211,8 +189,7 @@ def test_tausch_erreicht_alle_abschnitte_einer_datei():
 
 
 def test_tausch_notiert_sich_genau_einmal():
-    # Die Abschnitte teilen sich einen Befund; die Notiz darf nicht je
-    # Abschnitt einmal dastehen.
+    # Abschnitte teilen sich einen Befund.
     from therapy.report import Korpus
     korpus = Korpus()
     korpus.lade([{"name": "jahr.txt", "inhalt": JAHR}])
@@ -232,9 +209,7 @@ def test_sprache_setzen_erreicht_ebenfalls_alle_abschnitte():
 
 
 def test_befundzeile_steht_einmal_je_datei_nicht_je_abschnitt():
-    """Was ``lade`` zurueckgibt und was ``befunde`` zurueckgibt, muss dasselbe
-    zaehlen — sonst verdoppelt sich die Befundtabelle beim ersten Klick, der
-    sie neu holt."""
+    """Was ``lade`` zurueckgibt und was ``befunde`` zurueckgibt."""
     import json
 
     import therapy
@@ -246,7 +221,7 @@ def test_befundzeile_steht_einmal_je_datei_nicht_je_abschnitt():
     assert len(zuerst) == 1
     assert len(danach) == len(zuerst)
 
-    # Und nach einem Tausch steht die Notiz einmal da, nicht je Abschnitt.
+    # Und nach einem Tausch steht die Notiz.
     therapy.sprecher_tauschen("jahr.txt")
     nach_tausch = json.loads(therapy.befunde())
     assert len(nach_tausch) == 1

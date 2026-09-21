@@ -1,14 +1,4 @@
-"""Korpuswerkzeuge: Keyness, Wortverlauf, Vokabelbewegung, Kollokationen, TTR.
-
-Dieses Modul war lange ungetestet, obwohl es der Weg von jeder Zahl zurück in
-den Text ist. Seit die Schlüsselwörter eine eigene Ansicht haben, ist es
-ausserdem das, worauf die meisten Leute zuerst schauen.
-
-Die Tests bauen ihre Korpora aus wenigen Sätzen mit einer *eingebauten*
-Bewegung: ein Wort, das zunimmt, eines, das abnimmt, eines, das nur einmal
-vorkommt. Geprüft wird, ob die Rechnung diese Bewegung findet — nicht, ob
-bestimmte Zahlen herauskommen.
-"""
+"""Korpuswerkzeuge: Keyness, Wortverlauf, Vokabelbewegung, Kollokationen, TTR."""
 
 from __future__ import annotations
 
@@ -17,7 +7,7 @@ from therapy.lexical import Index, referenzfrequenzen
 
 
 def _sitzungen(saetze_je_sitzung: list[str]):
-    """Eine Sitzung je Eintrag, Klientenrede mit fester Therapeutenfrage."""
+    """Eine Sitzung je Eintrag, Klientenrede mit fester."""
     sitzungen = []
     for i, satz in enumerate(saetze_je_sitzung, start=1):
         text = (f"--- Session {i} ---\n"
@@ -29,8 +19,7 @@ def _sitzungen(saetze_je_sitzung: list[str]):
     return sitzungen
 
 
-# Zwölf Sitzungen: "Angst" verschwindet nach dem ersten Drittel, "Wut" nimmt
-# zu, "Rucksack" fällt genau einmal, ganz am Ende.
+# Zwölf Sitzungen:
 STEIGT_UND_FAELLT = _sitzungen([
     "Ich habe Angst gehabt und wieder Angst und nur Angst vor allem.",
     "Ich habe Angst gehabt und wieder Angst vor dieser Sache.",
@@ -52,12 +41,7 @@ def _index():
 
 
 def _anzeigen(eintraege) -> set[str]:
-    """Die angezeigten Wortformen einer Ergebnisliste.
-
-    Geprüft wird auf der Anzeigeform und nicht auf dem Lemma: der grobe
-    Lemmatisierer macht aus „Angst“ ein „angen“, und ein Test, der das
-    festschreibt, prüfte den Stemmer statt die Auswertung.
-    """
+    """Die angezeigten Wortformen einer Ergebnisliste."""
     return {e["anzeige"] for e in eintraege}
 
 
@@ -71,7 +55,7 @@ def test_wortverlauf_findet_die_eingebaute_bewegung():
     wut = idx.wortverlauf("Wut", KLIENT)
 
     assert len(angst["werte"]) == 12
-    # Angst geht runter, Wut geht hoch — das ist der eingebaute Verlauf.
+    # Angst geht runter, Wut geht hoch
     assert angst["werte"][0] > angst["werte"][-1]
     assert wut["werte"][0] < wut["werte"][-1]
     assert angst["werte"][-1] == 0.0
@@ -79,7 +63,7 @@ def test_wortverlauf_findet_die_eingebaute_bewegung():
 
 
 def test_wortverlauf_ist_eine_rate_keine_rohzahl():
-    # Sonst hat die längere Stunde automatisch mehr von allem.
+    # Sonst hat die längere Stunde automatisch mehr.
     idx = _index()
     verlauf = idx.wortverlauf("Wut", KLIENT)
     assert verlauf["roh"][-1] >= 1
@@ -115,7 +99,7 @@ def test_vokabelbewegung_meldet_was_frueh_aufhoert():
 
 
 def test_vokabelbewegung_rechnet_unter_vier_sitzungen_nicht():
-    # Eine Rangkorrelation über drei Punkte ist keine Auskunft.
+    # Eine Rangkorrelation über drei Punkte ist keine.
     kurz = Index(_sitzungen(["Ich habe Angst gehabt."] * 3))
     assert kurz.vokabelbewegung(KLIENT)["genug"] is False
     assert kurz.vokabelbewegung(KLIENT)["steigend"] == []
@@ -132,7 +116,7 @@ def test_keyness_je_sitzung_findet_das_einmalige_wort():
 
 
 def test_keyness_je_sitzung_ist_bei_einer_einzigen_sitzung_leer():
-    # Es gibt dann nichts, wogegen sich etwas abheben könnte.
+    # Es gibt dann nichts, wogegen sich etwas.
     eine = Index(_sitzungen(["Ich habe Angst gehabt und viel nachgedacht."]))
     assert eine.keyness_sitzung(eine.sitzungen[0], KLIENT) == []
 
@@ -150,15 +134,14 @@ def test_keyness_phase_braucht_vier_sitzungen():
 
 
 def test_keyness_zeigt_nur_was_heraussticht():
-    # Die Achsen "diese Sitzung" und "späte Hälfte" sollen nach oben zeigen;
-    # was seltener ist als anderswo, gehört auf die jeweils andere Seite.
+    # Die Achsen "diese Sitzung" und "späte Hälfte".
     phase = _index().keyness_phase(KLIENT, min_frequenz=3)
     assert all(e["ll"] >= 0 for e in phase["spaet"])
     assert all(e["ll"] >= 0 for e in phase["frueh"])
 
 
 def test_keyness_traegt_effektstaerke_neben_signifikanz():
-    # G² wächst mit der Textmenge; ohne Log Ratio steht am Ende alles oben.
+    # G² wächst mit der Textmenge; ohne Log.
     phase = _index().keyness_phase(KLIENT, min_frequenz=3)
     assert phase["spaet"], "die späte Hälfte muss etwas hergeben"
     for eintrag in phase["spaet"]:
@@ -184,7 +167,7 @@ def test_keyness_gegen_anderen_klienten():
 # ---------------------------------------------------------------------------
 
 def test_anzeigeform_gibt_eine_gesprochene_form_zurueck():
-    # Der Lemmatisierer ist grob; angezeigt wird, was wirklich gesagt wurde.
+    # Der Lemmatisierer ist grob; angezeigt wird, was.
     idx = _index()
     lemma = idx._lemma("gespürt")
     assert idx.anzeigeform(lemma) in {t.klein

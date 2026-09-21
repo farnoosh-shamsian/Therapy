@@ -1,32 +1,10 @@
-"""Englische Funktionswörter: Stoppwörter, Pronomenparadigmen, LSM-Kategorien.
-
-Funktionswörter sind für zwei Dinge da, die einander widersprechen:
-
-* In der Inhaltsanalyse (Kollokationen, Keyness, lexikalische Aufnahme) sind
-  sie Rauschen und fliegen raus → STOPPWOERTER.
-* Im Language Style Matching sind sie *das Signal selbst* → LSM_KATEGORIEN.
-
-Deshalb zwei Listen, die sich stark überschneiden, aber unterschiedlich
-geschnitten sind. Das ist Absicht.
-
-Eine Bemerkung, die für dieses Modul wichtiger ist als für sein deutsches
-Gegenstück: **LSM ist hier zu Hause.** Niederhoffer & Pennebaker haben das
-Mass an englischen Daten mit englischen Funktionswortkategorien entwickelt.
-Die deutsche Fassung in ``lexika/funktion.py`` ist die Übersetzung, diese
-hier ist das Original. Wo die beiden Zahlen auseinandergehen, ist die
-englische die besser begründete — und genau deshalb dürfen sie nicht
-gegeneinander gerechnet werden.
-"""
+"""Englische Funktionswörter: Stoppwörter, Pronomenparadigmen, LSM-Kategorien."""
 
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
 # Pronomenparadigmen
 # ---------------------------------------------------------------------------
-#
-# Englische Pronomen flektieren kaum, dafür sind die Kontraktionen Teil des
-# Paradigmas ("I'm", "we've"). Sie stehen mit drin, weil der Tokenizer sie
-# zusammenhält und weil sie in gesprochener Sprache die Normalform sind.
 
 PRONOMEN = {
     "1sg": {"i", "me", "my", "mine", "myself", "i'm", "i've", "i'll", "i'd"},
@@ -48,20 +26,13 @@ PRONOMEN = {
     "demonstrativ": {"this", "that", "these", "those", "such"},
 }
 
-# Im Deutschen trennt die Grossschreibung höfliches "Sie" vom 3.-Person-"sie".
-# Englisch hat diese Unterscheidung nicht — es gibt kein Siezen. Für die
-# Oberfläche heisst das: die Anrede-Kachel, die im deutschen Profil steht,
-# existiert in englischen Sitzungen nicht, statt mit einer Null dazustehen.
+# Im Deutschen trennt die Grossschreibung höfliches "Sie".
 SIEZEN_MARKER: set[str] = set()
 
 
 # ---------------------------------------------------------------------------
 # LSM-Kategorien
 # ---------------------------------------------------------------------------
-#
-# Neun Kategorien nach Pennebaker. LSM wird pro Kategorie berechnet und dann
-# gemittelt — nicht über die Gesamtmenge der Funktionswörter, sonst dominiert
-# die Artikelkategorie alles andere.
 
 LSM_KATEGORIEN = {
     "artikel": {"a", "an", "the"},
@@ -135,10 +106,6 @@ del _kat
 # ---------------------------------------------------------------------------
 # Stoppwörter
 # ---------------------------------------------------------------------------
-#
-# Für Kollokationen, Keyness und lexikalische Aufnahme. Bewusst etwas grösser
-# als die Funktionswortliste: hier kommen gesprochensprachliche Füllsel dazu,
-# die keine Funktionswortkategorie haben, aber jede Frequenzliste verstopfen.
 
 _FUELLSEL = {
     "um", "umm", "uh", "uhh", "er", "erm", "ah", "ahh", "oh", "ooh", "hm",
@@ -182,9 +149,7 @@ _ALLGEMEIN = {
 
 STOPPWOERTER: set[str] = _ALLGEMEIN | _FUELLSEL | FUNKTIONSWOERTER
 
-# Diese Wörter stehen zwar in STOPPWOERTER, sind aber klinisch nie egal.
-# lexical.py nimmt sie von der Stoppwortfilterung aus, wenn ausdrücklich
-# danach gesucht wird (Konkordanz funktioniert immer auf dem Volltext).
+# Diese Wörter stehen zwar in STOPPWOERTER, sind.
 STOPPWORT_AUSNAHMEN = {
     "i", "never", "always", "not", "no", "must", "should", "can't", "won't",
     "everyone", "nobody",
@@ -194,14 +159,6 @@ STOPPWORT_AUSNAHMEN = {
 # ---------------------------------------------------------------------------
 # Füllwörter und Rückmeldepartikeln
 # ---------------------------------------------------------------------------
-#
-# Wichtig für dialogue.py: ein Therapeuten-Turn aus nur "mhm" ist ein
-# Rückkanal und kein Redebeitrag. Wenn man das nicht trennt, sieht jede
-# Redeanteilsstatistik falsch aus.
-#
-# Englisch hat hier deutlich mehr Material als Deutsch — "right", "okay",
-# "sure", "I see", "got it" sind alle rückkanalfähig, und "mhm" allein
-# fängt einen englischsprachigen Therapeuten nicht ein.
 
 RUECKKANAL = {
     "mhm", "mmhm", "mm", "mmm", "hm", "hmm", "uh huh", "uh-huh", "mm hm",
@@ -213,5 +170,5 @@ RUECKKANAL = {
 
 VERZOEGERUNG = {"um", "umm", "uh", "uhh", "er", "erm", "ehm", "hm", "mm"}
 
-# Abbrüche und Selbstkorrekturen im Transkript, oft als "-" oder "/" notiert.
+# Abbrüche und Selbstkorrekturen im Transkript, oft als.
 ABBRUCH_ZEICHEN = ("-", "--", "/", "…", "...")

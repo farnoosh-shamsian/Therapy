@@ -1,25 +1,10 @@
-"""Emotionslexikon — auf Differenzierung ausgelegt, nicht auf Valenz.
-
-Der entscheidende Unterschied zu einem Sentiment-Lexikon: hier wird nicht
-gemessen, *wie gut oder schlecht* es jemandem geht, sondern *wie fein er es
-sagen kann*. Der Weg von "schlecht" und "komisch" zu "gekränkt", "wehmütig",
-"erleichtert" ist das therapeutische Ziel selbst, und er ist zählbar.
-
-Alle Einträge kleingeschrieben, Abgleich gegen Wortform und gegen ein grob
-gestutztes Lemma (siehe tokenize.lemma_grob). Deshalb stehen Stämme wie
-"ängstl" nicht drin — lieber ein paar Vollformen mehr als ein Stamm, der
-"Angstellter" mitnimmt.
-"""
+"""Emotionsfamilien, Valenz, Metapherndomänen."""
 
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
 # Emotionsfamilien
 # ---------------------------------------------------------------------------
-#
-# Familien statt einer flachen Liste, weil die klinisch interessante Frage
-# selten "wie viel Affekt" ist, sondern "welcher Affekt, und seit wann".
-# Ein Wort darf in mehreren Familien stehen (Scham/Schuld überlappen real).
 
 FAMILIEN: dict[str, set[str]] = {
     "angst": {
@@ -139,10 +124,6 @@ DIFFERENZIERT: set[str] = set(WORT_ZU_FAMILIE)
 # ---------------------------------------------------------------------------
 # Vager Affekt
 # ---------------------------------------------------------------------------
-#
-# Der Gegenpol. Wörter, die einen Zustand melden, ohne ihn zu benennen.
-# Nicht "schlechter" als differenzierter Affekt — nur undifferenzierter, und
-# genau dieses Verhältnis ist die Messgrösse.
 
 VAGER_AFFEKT = {
     "schlecht", "gut", "komisch", "seltsam", "merkwürdig", "eigenartig",
@@ -159,11 +140,6 @@ VAGER_AFFEKT = {
 # ---------------------------------------------------------------------------
 # Körpernaher Affekt
 # ---------------------------------------------------------------------------
-#
-# Manche Klienten sprechen konsequent im Körper statt im Gefühl. Das ist keine
-# Schwäche und keine Alexithymie-Diagnose — es ist eine eigene Spur mit einer
-# eigenen Trajektorie, und die Verschiebung zwischen Körper und Gefühl über
-# die Sitzungen hinweg ist das Interessante daran.
 
 KOERPER_AFFEKT = {
     # Orte
@@ -185,16 +161,6 @@ KOERPER_AFFEKT = {
 # ---------------------------------------------------------------------------
 # Metaphern-Kandidaten
 # ---------------------------------------------------------------------------
-#
-# Konfidenz C, und das steht auch in der UI. Was hier gezählt wird, sind
-# Wörter aus Quelldomänen — ob sie im Satz *metaphorisch* gebraucht wurden,
-# entscheidet das Werkzeug nicht. Der Nutzen liegt nicht in der Zahl, sondern
-# darin, dass man sehen kann, wann ein Bild auftaucht, ob es mutiert und wann
-# es verschwindet. Therapeuten leben von diesen Bildern.
-#
-# markers.py verlangt zusätzlich einen mentalen Bezug im selben Satz (ein
-# Wort aus FAMILIEN, VAGER_AFFEKT oder eine Selbstreferenz), sonst zählt
-# "Wetter" auch dann, wenn draussen wirklich Regen ist.
 
 METAPHERN_DOMAENEN = {
     "bewegung": {
@@ -270,17 +236,12 @@ del _dom, _woerter, _w
 # ---------------------------------------------------------------------------
 # Verneinter Affekt
 # ---------------------------------------------------------------------------
-#
-# "Ich bin nicht traurig" ist kein Trauer-Treffer im selben Sinn wie "ich bin
-# traurig". markers.py prüft ein kurzes Fenster links auf Negation und zählt
-# solche Treffer getrennt — verworfen werden sie nicht, denn ein Klient, der
-# durchgehend verneinten Affekt produziert, ist selbst ein Befund.
 
 NEGATIONS_FENSTER = 3  # Tokens links vom Treffer
 
 
 # ---------------------------------------------------------------------------
-# Beziehungsbegriffe — Rohstoff für das Soziogramm (§5.5)
+# Beziehungsbegriffe
 # ---------------------------------------------------------------------------
 
 BEZIEHUNGS_BEGRIFFE = {

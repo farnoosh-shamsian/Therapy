@@ -1,9 +1,4 @@
-"""Einlesen: Formaterkennung, Sprecherzuordnung, und vor allem der Befund.
-
-Der Befund ist hier wichtiger als das Parsen. Ein Parser, der danebenliegt und
-es meldet, ist brauchbar. Einer, der danebenliegt und schweigt, ist gefährlich —
-deshalb prüfen die Tests unten fast durchgehend, ob die *Warnung* kommt.
-"""
+"""Einlesen: Formate, Parsen, Sprecher."""
 
 from __future__ import annotations
 
@@ -14,13 +9,7 @@ from therapy.ingest import (KLIENT, THERAPEUT, erkenne_format, lies,
 
 
 def lies_eine(*args, **kwargs):
-    """Liest einen Text, der genau eine Sitzung sein soll.
-
-    ``lies`` gibt seit der Sitzungstrennung eine Liste zurück. Die meisten
-    Testtexte tragen keine Sitzungsmarken und sind genau eine Sitzung — das
-    hier hält die Prüfungen kurz und stellt nebenbei sicher, dass nicht
-    versehentlich getrennt wurde.
-    """
+    """Liest einen Text, der genau eine Sitzung."""
     sitzungen = lies(*args, **kwargs)
     assert len(sitzungen) == 1, f"unerwartet {len(sitzungen)} Sitzungen"
     return sitzungen[0]
@@ -105,8 +94,7 @@ def test_txt_mit_labels():
 
 
 def test_vtt_fasst_untertitelzeilen_zusammen():
-    # Ohne Zusammenfassung zählt man Untertitel statt Redebeiträge, und jede
-    # Turn-Längen-Statistik ist Unsinn.
+    # Ohne Zusammenfassung zählt man Untertitel statt Redebeiträge.
     s = lies_eine("sitzung-04.vtt", VTT)
     assert len(s.turns) == 2
     assert "nachgedacht" in s.turns[1].text
@@ -122,10 +110,10 @@ def test_srt_und_csv():
 
 def test_whisper_diarisierung_wird_geraten_und_gemeldet():
     s = lies_eine("a.json", WHISPER)
-    # Anonyme Labels: wer weniger redet, wird als Therapeut angenommen …
+    # Anonyme Labels:
     assert s.turns[0].sprecher == THERAPEUT
     assert s.turns[1].sprecher == KLIENT
-    # … und genau das muss als Vermutung im Befund stehen.
+    # … und genau das muss als Vermutung.
     assert s.befund.sprecher_quelle == "geraten"
     assert any("guessed" in w.lower() for w in s.befund.warnungen)
 
@@ -142,14 +130,13 @@ def test_ohne_labels_werden_kennzahlen_als_nicht_verfuegbar_gemeldet():
 
 
 def test_zeitstempel_werden_erkannt_oder_eben_nicht():
-    # Zeitkennzahlen selbst gibt es nicht mehr; ob Zeitstempel da sind, steht
-    # trotzdem im Befund — das Format zu melden bleibt Teil der Ehrlichkeit.
+    # Zeitkennzahlen selbst gibt es nicht mehr; ob.
     assert not lies_eine("a.txt", TXT).befund.zeitstempel
     assert lies_eine("a.vtt", VTT).befund.zeitstempel
 
 
 def test_fliesstext_ohne_sprecher_wird_nicht_zerhackt():
-    # Ein Doppelpunkt im Fliesstext darf keinen Sprecherwechsel erzeugen.
+    # Ein Doppelpunkt im Fliesstext darf keinen Sprecherwechsel.
     text = "Ich dachte mir nur: das kann doch nicht wahr sein.\n"
     s = lies_eine("a.txt", text)
     assert len(s.turns) == 1
@@ -176,13 +163,9 @@ def test_sortierung_nach_datum():
 # ---------------------------------------------------------------------------
 # Ein langer Text, mehrere Sitzungen
 # ---------------------------------------------------------------------------
-#
-# Der Fall, für den das Werkzeug eigentlich gebaut ist: ein Jahr Therapie liegt
-# in einer Datei. Vorher wurde daraus ein einziger Punkt und der Verlauf fiel
-# lautlos aus.
 
 def _jahr(marke):
-    """Drei Sitzungen, getrennt durch die übergebene Markenzeile (%d = Nummer)."""
+    """Drei Sitzungen, getrennt durch die übergebene Markenzeile."""
     block = ("Therapeut: Wie war die Woche?\n"
              "Klientin: Schwierig. Ich habe viel darüber nachgedacht.\n"
              "Therapeut: Erzählen Sie mehr davon.\n"
@@ -221,15 +204,14 @@ def test_datumszeile_allein_ist_eine_marke():
 
 
 def test_sitzungskopf_wird_nicht_mehr_als_rede_verschluckt():
-    # Vorher fiel "Session 3:" durch die Labelprüfung und landete als
-    # gesprochener Text im vorigen Turn. Das war stille Beschädigung.
+    # Vorher fiel "Session 3:" durch die Labelprüfung.
     sitzungen = lies("jahr.txt", _jahr("Session %d:"))
     assert len(sitzungen) == 3
     assert not any("Session" in t.text for s in sitzungen for t in s.turns)
 
 
 def test_eine_einzelne_marke_trennt_nicht():
-    # Eine Marke ist ein Kopf, keine Trennung. Zwei sind eine Aussage.
+    # Eine Marke ist ein Kopf, keine Trennung.
     text = ("--- Session 1 ---\n"
             "Therapeut: Wie war die Woche?\n"
             "Klientin: Schwierig, ich habe viel nachgedacht darüber.\n")
@@ -237,16 +219,14 @@ def test_eine_einzelne_marke_trennt_nicht():
 
 
 def test_turn_indizes_beginnen_je_sitzung_neu():
-    # Belegstellen, KWIC und Fäden lesen den Index als Adresse *innerhalb*
-    # der Sitzung — er muss deshalb je Sitzung bei null anfangen.
+    # Belegstellen, KWIC und Fäden lesen den Index.
     sitzungen = lies("jahr.txt", _jahr("--- Session %d ---"))
     for s in sitzungen:
         assert [t.idx for t in s.turns] == [0, 1, 2, 3]
 
 
 def test_zwoelf_benannte_dateien_werden_nicht_noch_einmal_zerschnitten():
-    # Wer seine Stunden ordentlich ablegt, bekommt sie so zurück, wie er sie
-    # abgelegt hat — die Segmentierung ist eine Notlösung, keine Gewohnheit.
+    # Wer seine Stunden ordentlich ablegt, bekommt sie.
     from therapy.report import Korpus
     korpus = Korpus()
     korpus.lade([{"name": f"klient-a_sitzung-{i:02d}_2024-01-{i:02d}.txt",
@@ -271,7 +251,7 @@ def test_langer_text_ohne_marken_wird_segmentiert():
     assert all(s.ist_segment for s in korpus.sitzungen)
     assert korpus.sitzungen[0].titel.startswith("Segment")
     assert korpus.sitzungen[0].befund.teilung == "segmente"
-    # Und es steht als Warnung im Befund, nicht nur in den Daten.
+    # Und es steht als Warnung im Befund.
     assert any("equal segments" in w for w in korpus.sitzungen[0].befund.warnungen)
 
 

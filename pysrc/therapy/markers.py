@@ -1,21 +1,4 @@
-"""Die Marker — Zählung mit Rückfahrkarte.
-
-Jeder Treffer trägt seinen Zeichen-Offset im Turn mit. Das ist die technische
-Voraussetzung für die Regel, an der das ganze Werkzeug hängt: **jede Zahl in
-der Oberfläche ist anklickbar und öffnet die Zeilen, die sie erzeugt haben.**
-
-Alle Raten sind *pro 1000 Wörter desselben Sprechers*. Nie pro Turn, nie pro
-Sitzung — sonst misst man Gesprächigkeit statt Sprache.
-
-**Zur Zweisprachigkeit.** In diesem Modul steht der Ablauf, nicht die Sprache.
-Welche Wortlisten abgeglichen werden, wie ein Partizip aussieht, was als
-Fehlalarm gilt und welche Kennzahlen am Ende herauskommen, liefert das
-Sprachpaket zur jeweiligen Sitzung (:mod:`therapy.sprachen`). Der Ablauf
-darunter ist für beide Sprachen derselbe, und das ist keine Sparsamkeit:
-wären es zwei Abläufe, würden sie auseinanderdriften, und in zwei Jahren
-wüsste niemand mehr, warum eine deutsche und eine englische Sitzung
-unterschiedlich gezählt werden.
-"""
+"""Die Marker — Zählung mit Rückfahrkarte."""
 
 from __future__ import annotations
 
@@ -30,12 +13,6 @@ from .tokenize import Token, tokenisiere, zerlege_kompositum
 # ---------------------------------------------------------------------------
 # Abgleichsmaschinerie je Sprache
 # ---------------------------------------------------------------------------
-#
-# Die Matcher sind teuer zu bauen (ein grosser regulärer Ausdruck pro
-# Wortliste) und über die Laufzeit der Seite konstant. Sie werden deshalb
-# einmal pro Sprache gebaut und danach wiederverwendet — aber erst dann, wenn
-# eine Sitzung in dieser Sprache auftaucht. Wer nur deutsche Transkripte lädt,
-# baut die englischen Matcher nie.
 
 _MATCHER_CACHE: dict[str, dict[str, sprachen.Lexikonmatcher]] = {}
 _REGRET_CACHE: dict[str, list] = {}
@@ -69,7 +46,7 @@ def _regret(pak) -> list:
 
 @dataclass(slots=True)
 class Treffer:
-    """Ein einzelner Markertreffer, adressierbar bis auf das Zeichen."""
+    """Ein Markertreffer, adressierbar bis aufs Zeichen."""
 
     marker: str
     turn: int
@@ -78,20 +55,13 @@ class Treffer:
     form: str
 
     def als_liste(self) -> list:
-        # Kompakte Form für die JSON-Brücke: Listen statt Objekte spart im
-        # Browser spürbar Speicher, wenn ein Jahr Transkripte offen ist.
+        # Kompakte Form für die JSON-Brücke:
         return [self.turn, self.start, self.end, self.form]
 
 
 @dataclass
 class SprecherMarker:
-    """Alle Marker eines Sprechers in einer Sitzung.
-
-    ``sprache`` steht hier und nicht nur an der Sitzung, weil
-    :func:`kennzahlen` sonst nicht wüsste, welche Formeln sie anwenden soll —
-    und weil arc.py Reihen aus diesen Objekten baut, lange nachdem die Sitzung
-    aus dem Blick ist.
-    """
+    """Alle Marker eines Sprechers in einer Sitzung."""
 
     sprecher: str
     sprache: str = "de"
@@ -123,7 +93,7 @@ class SprecherMarker:
 
 def analysiere_sitzung(sitzung: Sitzung, vokabular: set[str] | None = None
                        ) -> dict[str, SprecherMarker]:
-    """Zählt alle Marker pro Sprecher für eine Sitzung, in deren Sprache."""
+    """Zählt alle Marker pro Sprecher."""
     code = getattr(sitzung, "sprache", sprachen.STANDARD)
     pak = sprachen.paket(code)
     ergebnis: dict[str, SprecherMarker] = {
@@ -191,17 +161,7 @@ def _analysiere_turn(turn: Turn, sm: SprecherMarker, vokabular: set[str] | None,
 def _affekt(tokens: list[Token], wort_tokens: list[Token], klein: str,
             turn_idx: int, sm: SprecherMarker, vokabular: set[str] | None,
             pak, matcher) -> None:
-    """Emotionsfamilien, vager Affekt, Körperaffekt — plus Kompositazerlegung.
-
-    Komposita sind im Deutschen nicht Kür: "Verlustangst", "Schuldgefühle",
-    "Versagensangst" kommen je einmal vor und verschwinden im Langschwanz,
-    wenn man sie nicht aufmacht. Genau dort steckt das geladene Vokabular.
-
-    Im Englischen entfällt der Schritt, und zwar nicht aus Bequemlichkeit:
-    englische Komposita sind offen geschrieben ("fear of loss"), also bereits
-    zerlegt. Was hier zu holen wäre, steht dort ohnehin schon als zwei
-    gewöhnliche Wörter im Frequenzindex.
-    """
+    """Emotionsfamilien, vager Affekt, Körperaffekt — plus Kompositazerlegung."""
     emo = pak.emotion
     verneint_positionen = _negationsfenster(wort_tokens, pak)
 
@@ -226,10 +186,9 @@ def _affekt(tokens: list[Token], wort_tokens: list[Token], klein: str,
     if not (pak.KOMPOSITA and vokabular):
         return
 
-    # Komposita aufmachen und die Teile noch einmal prüfen.
+    # Komposita aufmachen und die Teile noch einmal.
     for tok in wort_tokens:
-        # Gross geschrieben und nicht satzinitial: im Deutschen der einzige
-        # Substantivhinweis, den man ohne Parser bekommt.
+        # Gross geschrieben und nicht satzinitial:
         if len(tok.text) < 9 or not tok.gross_geschrieben or tok.satz_position == 0:
             continue
         teile = zerlege_kompositum(tok.klein, vokabular)
@@ -247,12 +206,7 @@ def _affekt(tokens: list[Token], wort_tokens: list[Token], klein: str,
 
 
 def _negationsfenster(wort_tokens: list[Token], pak) -> list[tuple[int, int]]:
-    """Offsetbereiche, die rechts von einer Negation liegen (kurzes Fenster).
-
-    Die Fensterbreite kommt aus dem Sprachpaket: englische Negation hängt am
-    Hilfsverb ("I don't really feel angry") und steht damit im Schnitt weiter
-    vom verneinten Wort entfernt als die deutsche.
-    """
+    """Offsetbereiche, die rechts von einer Negation liegen."""
     fenster = pak.emotion.NEGATIONS_FENSTER
     bereiche: list[tuple[int, int]] = []
     for i, tok in enumerate(wort_tokens):
@@ -269,12 +223,7 @@ def _negationsfenster(wort_tokens: list[Token], pak) -> list[tuple[int, int]]:
 
 def _metaphern(tokens: list[Token], wort_tokens: list[Token], klein: str,
                turn_idx: int, sm: SprecherMarker, pak, matcher) -> None:
-    """Metaphernkandidaten — Konfidenz C, und das steht auch in der UI.
-
-    Zusatzbedingung gegen den offensichtlichsten Fehlalarm: im selben Satz
-    muss ein mentaler Bezug stehen (Affektwort oder Selbstreferenz). Sonst
-    zählt "Wetter" auch dann, wenn draussen wirklich Regen ist.
-    """
+    """Metaphernkandidaten — Konfidenz C."""
     emo = pak.emotion
     selbstbezug = set(pak.WORTLISTEN.get("ich_nom", ())) | set(
         pak.WORTLISTEN.get("ich_obl", ()))
@@ -306,28 +255,20 @@ def _metaphern(tokens: list[Token], wort_tokens: list[Token], klein: str,
 # ---------------------------------------------------------------------------
 
 def kennzahlen(sm: SprecherMarker) -> dict[str, float]:
-    """Verdichtet die Rohzählungen zu den Zahlen der Oberfläche.
-
-    Welche Zahlen das sind, entscheidet das Sprachpaket. Die Schlüssel
-    überschneiden sich weitgehend, aber nicht vollständig: ``man_quote`` gibt
-    es nur auf Deutsch, ``generisch_quote`` nur auf Englisch, und das ist
-    Absicht — siehe den Docstring von :mod:`therapy.sprachen`.
-    """
+    """Verdichtet Rohzählungen zu Kennzahlen."""
     return sprachen.paket(sm.sprache).kennzahlen(sm)
 
 
 def beschriftung(sprache: str = sprachen.STANDARD) -> dict[str, tuple[str, str, str]]:
-    """(Anzeigename, Konfidenz, Hinweis) je Kennzahl, in der Sprache der Sitzung."""
+    """(Anzeigename, Konfidenz, Hinweis) je Kennzahl."""
     return sprachen.paket(sprache).BESCHRIFTUNG
 
 
 def komposit_index(sprache: str = sprachen.STANDARD) -> dict[str, float]:
-    """Gewichte des Arc-Index. Vorzeichen: +1 = mehr Aneignung/Verarbeitung."""
+    """Gewichte des Arc-Index."""
     return sprachen.paket(sprache).KOMPOSIT_INDEX
 
 
-# Rückwärtskompatible Namen. Vor der Zweisprachigkeit waren das
-# Modulkonstanten; ein paar Aufrufer und die Tests kennen sie so, und für
-# einsprachig deutsche Korpora sind sie weiterhin richtig.
+# Rückwärtskompatible Namen.
 BESCHRIFTUNG = sprachen.paket("de").BESCHRIFTUNG
 KOMPOSIT_INDEX = sprachen.paket("de").KOMPOSIT_INDEX

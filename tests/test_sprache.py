@@ -1,11 +1,4 @@
-"""Spracherkennung, Sprachwahl und das gemischte Korpus.
-
-Der Befund ist hier wieder wichtiger als die Erkennung. Eine Erkennung, die
-danebenliegt und es meldet, ist brauchbar; eine, die danebenliegt und
-schweigt, zählt ein englisches Transkript mit deutschen Wortlisten aus und
-liefert eine Kurve, die aussieht wie ein Befund und keiner ist. Die Tests
-unten prüfen deshalb fast durchgehend, ob die *Warnung* kommt.
-"""
+"""Spracherkennung, Sprachwahl und das gemischte Korpus."""
 
 from __future__ import annotations
 
@@ -15,7 +8,7 @@ from therapy.report import Korpus
 
 
 def lies_eine(*args, **kwargs):
-    """Wie ``lies``, aber für Texte, die genau eine Sitzung sein sollen."""
+    """Wie ``lies``."""
     sitzungen = lies(*args, **kwargs)
     assert len(sitzungen) == 1, f"unerwartet {len(sitzungen)} Sitzungen"
     return sitzungen[0]
@@ -57,8 +50,7 @@ def test_erkennt_deutsch_und_englisch():
 
 
 def test_zu_wenig_text_wird_nicht_geraten():
-    # Unterhalb der Wortgrenze wird die Standardsprache genommen und das
-    # gesagt — nicht geraten und geschwiegen.
+    # Unterhalb der Wortgrenze wird die Standardsprache genommen.
     code, sicherheit, details = sprachen.erkenne("Mhm. Ja.")
     assert code == sprachen.STANDARD
     assert sicherheit == 0.0
@@ -75,7 +67,7 @@ def test_dateiname_schlaegt_die_erkennung():
     sitzung = lies_eine("client-jane_session-03_de.txt", EN)
     assert sitzung.sprache == "de"
     assert sitzung.befund.sprache_quelle == "dateiname"
-    # …und der Widerspruch wird gemeldet, statt still übergangen zu werden.
+    # …und der Widerspruch wird gemeldet.
     assert any("filename" in w.lower() for w in sitzung.befund.warnungen)
 
 
@@ -98,8 +90,7 @@ def test_erkannte_sprache_steht_im_befund():
 # ---------------------------------------------------------------------------
 
 def test_gemischte_sitzung_wird_gemeldet():
-    # Eine Sitzung, die zur Hälfte in der anderen Sprache läuft, wird als
-    # eine Sprache ausgewertet — mit einer Warnung, die sagt, was das kostet.
+    # Halb deutsch, halb englisch.
     sitzung = lies_eine("gemischt.txt", EN + "\n" + DE)
     assert sitzung.befund.anteil_fremdsprache > 0
     assert any("other language" in w for w in sitzung.befund.warnungen)
@@ -156,8 +147,7 @@ def test_bericht_traegt_beide_sprachen():
 def test_beschriftung_ist_nach_sprache_geschachtelt():
     bericht = _korpus_mit_beiden_sprachen().bericht()
     marker = bericht["beschriftung"]["marker"]
-    # Jede Sprache bringt ihren eigenen Distanzierungsmarker mit, und der der
-    # anderen taucht bei ihr gar nicht auf.
+    # Jede Sprache bringt ihren eigenen Distanzierungsmarker mit.
     assert "man_quote" in marker["de"] and "man_quote" not in marker["en"]
     assert "generisch_quote" in marker["en"] and "generisch_quote" not in marker["de"]
 
@@ -179,8 +169,7 @@ def test_jede_sitzung_traegt_ihre_sprache():
 
 
 def test_keyness_vergleicht_nicht_ueber_die_sprachgrenze():
-    # Gegen eine anderssprachige Referenz misst Keyness den Sprachunterschied
-    # und sonst nichts. Dann lieber eine leere Liste mit Begründung.
+    # Anderssprachige Referenz misst nur die Sprache.
     bericht = _korpus_mit_beiden_sprachen().bericht()
     for klient in bericht["klienten"]:
         assert klient["keyness"] == []
@@ -222,12 +211,10 @@ def test_sprachwechsel_laesst_nur_vollstaendige_reihen_uebrig():
         {"name": "klient-anna_sitzung-02_2024-01-18.txt", "inhalt": EN},
     ])
     serien = korpus.bericht()["klienten"][0]["arc"]["serien"]
-    # Sprachspezifische Reihen fallen heraus, statt mit Nullen aufgefüllt zu
-    # werden — eine Null wäre eine Behauptung über eine Sitzung, in der gar
-    # nicht gemessen wurde.
+    # Sprachspezifische Reihen fallen heraus.
     assert "man_quote" not in serien
     assert "generisch_quote" not in serien
-    # Die zusammengesetzte Reihe geht durch, und die geteilten auch.
+    # Die zusammengesetzte Reihe geht durch.
     assert len(serien["vgl_distanzierung"]) == 2
     assert len(serien["hecken_rate"]) == 2
 
@@ -239,7 +226,7 @@ def test_sprache_von_hand_setzen():
     korpus.sprache_setzen(sid, "de")
     assert korpus.sitzungen[0].sprache == "de"
     assert korpus.sitzungen[0].befund.sprache_quelle == "manuell"
-    # Und die Analyse läuft danach in der gesetzten Sprache neu.
+    # Danach läuft die Analyse in der neuen Sprache.
     assert korpus.bericht()["klienten"][0]["sprache"] == "de"
 
 
@@ -250,9 +237,7 @@ def test_sprache_von_hand_setzen():
 def test_namen_werden_je_sprache_gesucht():
     from therapy.pseudonym import finde_namen
 
-    # „Rat“ ist im Deutschen ein gewöhnliches Substantiv und im Englischen
-    # kein Lexikonwort — ein gemeinsamer Durchgang würde den Sprachen ihre
-    # jeweiligen Substantive als Namen unterschieben.
+    # „Rat“ ist im Deutschen ein gewöhnliches Substantiv.
     deutsch = finde_namen(["Ich habe meine Schwester Anna gefragt."], sprache="de")
     assert any(k.name == "Anna" for k in deutsch)
 

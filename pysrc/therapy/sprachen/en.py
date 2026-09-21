@@ -1,40 +1,10 @@
-"""Sprachpaket Englisch.
-
-Das Gegenstück zu ``de.py``, und an drei Stellen absichtlich *nicht*
-dessen Spiegelbild:
-
-1. **Die Distanzierungsmessung ist eine Stufe unsicherer.** Deutsch hat mit
-   "man" ein eigenes Pronomen, das nichts anderes sein kann. Englisch behilft
-   sich mit generischem "you", und dasselbe "you" ist in einer Therapiestunde
-   meistens die Anrede des Therapeuten. Was unten in :func:`wortmarker_ok`
-   steht, ist der Versuch, die beiden zu trennen; er ist gut genug für einen
-   Verlauf und nicht gut genug für eine absolute Zahl, und die Kachel trägt
-   deshalb Konfidenz B statt A.
-
-2. **Es gibt keine Kompositazerlegung.** Englische Komposita sind offen
-   geschrieben ("fear of loss", "guilt feelings"), das heisst, sie sind schon
-   zerlegt — und was im Deutschen ein einzelnes seltenes Wort ist, das aus dem
-   Langschwanz gehoben werden muss, steht hier von vornherein als zwei
-   gewöhnliche Wörter da. Der Block fehlt in englischen Sitzungen deshalb
-   ganz, statt leer dazustehen.
-
-3. **Passiv und Tempus laufen über andere Morphologie.** Das englische
-   be-Passiv ist mit dem prädikativen Adjektiv formgleich ("I was told" /
-   "I was tired"); der wichtigste Einzelteil dieses Moduls ist die
-   Ausschlussliste, die das trennt.
-
-Alles andere — Affektfamilien, Hecken, Absolutismen, Kausalität, Einsicht,
-Zeitorientierung, Metaphern — misst hier denselben Begriff wie drüben, mit
-eigenem Wortmaterial und unter demselben Schlüssel.
-"""
+"""Sprachpaket Englisch."""
 
 from __future__ import annotations
 
 import re
 
-# ``emotion`` und ``funktion`` sehen hier ungenutzt aus und sind es nicht:
-# sie gehören zum Paketvertrag. dialogue.py, threads.py und people.py greifen
-# sie als ``pak.funktion`` usw. ab.
+# ``emotion`` und ``funktion`` sehen hier ungenutzt aus.
 from ..lexika_en import dialogmuster, emotion, funktion, marker as lex  # noqa: F401
 from ..tokenize import ABKUERZUNGEN_EN, lemma_grob_en
 
@@ -50,17 +20,12 @@ ABKUERZUNGEN = ABKUERZUNGEN_EN
 
 # Siehe Punkt 2 im Moduldocstring.
 KOMPOSITA = False
-# Grossschreibung mitten im Satz ist im Englischen ein Eigennamenhinweis und
-# kein Substantivhinweis. ``lexical.py`` benutzt den Schalter, um die
-# Kompositalogik gar nicht erst anzuwerfen; ``pseudonym.py`` benutzt dieselbe
-# Tatsache in die andere Richtung und findet englische Namen dadurch
-# zuverlässiger als deutsche.
+# Grossschreibung mitten im Satz ist im Englischen.
 GROSSSCHREIBUNG_IST_SUBSTANTIV = False
 
 lemma = lemma_grob_en
 
-# Partizip II: unregelmässige Vollformen oder regelmässiges -ed.
-# Mindestlänge 4, sonst zählt "red", "bed" und "fed" als Partizip.
+# Partizip II:
 _PARTIZIP_ED = re.compile(r"^[a-z]{3,}ed$")
 
 
@@ -71,26 +36,15 @@ def _ist_partizip(form: str) -> bool:
 # ---------------------------------------------------------------------------
 # Fehlalarmfilter
 # ---------------------------------------------------------------------------
-#
-# Zwei Filter, und der erste ist der wichtigste Einzelentscheid im ganzen
-# englischen Paket.
 
-# Fenster links und rechts vom Treffer, in dem nach einer erstarrten Formel
-# gesucht wird. 16 Zeichen decken "what do you " und " you know" ab, ohne
-# schon den halben Satz einzufangen.
+# Fenster links und rechts vom Treffer.
 _UMFELD = 16
 
 _SATZENDE = re.compile(r"[.!?]")
 
 
 def _in_frage(klein: str, start: int) -> bool:
-    """Steht der Treffer in einem Satz, der mit einem Fragezeichen endet?
-
-    Ein "you" in einer Frage ist fast immer die Anrede des Gegenübers und
-    fast nie generisch. Das ist der billigste und wirksamste Teil des
-    Filters: Therapeutenfragen fallen damit vollständig heraus, und die
-    Rückfragen des Klienten an den Therapeuten gleich mit.
-    """
+    """Steht der Treffer in einem Fragesatz?"""
     treffer = _SATZENDE.search(klein, start)
     return bool(treffer) and treffer.group() == "?"
 
@@ -113,9 +67,6 @@ def wortmarker_ok(name: str, form: str, klein: str, start: int,
         return True
 
     # -- Abtönung ----------------------------------------------------------
-    #
-    # Dieselbe Logik wie beim deutschen "ja": "Right." als Antwort am
-    # Satzanfang ist Rückkanal, "…, right?" am Ende ist Abtönung.
     if name.startswith("partikel_"):
         if form not in lex.PARTIKEL_POSITION_AUSNAHMEN:
             return True
@@ -130,13 +81,7 @@ def wortmarker_ok(name: str, form: str, klein: str, start: int,
 
 
 def negation_morph_ok(wort: str) -> bool:
-    """"unable", "worthless", "disconnected" — aber nicht "understand".
-
-    Die Ausnahmeliste ist hier viel länger als im Deutschen und muss es sein:
-    "un-", "in-", "im-", "dis-" und "mis-" sind kurz und stehen zufällig am
-    Anfang vieler gewöhnlicher Wörter. Ohne die Liste wäre jedes zweite
-    "into", "interest" und "minute" eine Verneinung.
-    """
+    """"unable", "worthless", "disconnected" — aber nicht "understand"."""
     if len(wort) < 6:
         return False
     if wort in lex.NEGATIV_MORPH_AUSNAHMEN:
@@ -149,20 +94,7 @@ def negation_morph_ok(wort: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def tempus(wort_tokens: list, turn_idx: int, sm) -> None:
-    """Grobe Tempuszuordnung pro Satz.
-
-    Dieselbe Priorität wie im Deutschen — Futur > Perfekt > Präteritum >
-    Präsens — und aus demselben Grund: ein Satz bekommt höchstens ein Tempus,
-    sonst summieren sich die Anteile nicht auf eins und die gestapelte
-    Darstellung lügt.
-
-    Was hier anders ist als drüben: das englische Präteritum ist überwiegend
-    morphologisch (-ed, unregelmässige Vollform) und nicht über ein Hilfsverb
-    erkennbar. Die -ed-Form allein ist aber mit dem Partizip formgleich, und
-    deshalb wird sie erst dann als Präteritum gewertet, wenn im Satz kein
-    Perfekt-Hilfsverb steht — sonst würde jedes "I have worked" doppelt
-    zählen.
-    """
+    """Grobe Tempuszuordnung pro Satz."""
     nach_satz: dict[int, list] = {}
     for tok in wort_tokens:
         nach_satz.setdefault(tok.satz, []).append(tok)
@@ -189,23 +121,11 @@ def tempus(wort_tokens: list, turn_idx: int, sm) -> None:
 # ---------------------------------------------------------------------------
 # Passiv
 # ---------------------------------------------------------------------------
-#
-# Fenster von vier Tokens statt der neun im Deutschen. Deutsch stellt das
-# Partizip ans Satzende und kann beliebig viel dazwischen schieben; Englisch
-# stellt es direkt hinter das Hilfsverb, höchstens durch ein Adverb getrennt
-# ("I was completely taken apart"). Ein grösseres Fenster fängt hier nur
-# Fehlalarme.
 _PASSIV_FENSTER = 4
 
 
 def passiv(wort_tokens: list, turn_idx: int, sm, text: str) -> None:
-    """be- oder get-Hilfsverb plus Partizip II im selben Satz.
-
-    Der Ausschluss von :data:`lexika_en.marker.PARTIZIP_ADJEKTIVISCH` ist
-    keine Feinheit, sondern trägt die ganze Zahl: ohne ihn ist "I was tired"
-    ein Passiv, und dann misst dieser Marker Befinden statt Agens — und
-    Befinden wird zwei Kacheln weiter links schon gemessen.
-    """
+    """be- oder get-Hilfsverb plus Partizip II im."""
     for i, tok in enumerate(wort_tokens):
         if tok.klein not in lex.PASSIV_HILFSVERB:
             continue
@@ -226,13 +146,7 @@ def passiv(wort_tokens: list, turn_idx: int, sm, text: str) -> None:
 # ---------------------------------------------------------------------------
 
 def kennzahlen(sm) -> dict[str, float]:
-    """Verdichtet die Rohzählungen zu den Zahlen, die in der Oberfläche stehen.
-
-    Die Schlüssel sind dort dieselben wie im deutschen Paket, wo beide
-    Sprachen denselben Begriff messen. Wo nicht, stehen sie hier allein:
-    ``generisch_*`` und ``irrealis_*`` gibt es nur hier, ``man_*`` und
-    ``konjunktiv2_*`` nur drüben.
-    """
+    """Verdichtet Rohzählungen zu Kennzahlen."""
     z = sm.zaehler
     generisch, ich = z.get("generisch", 0), z.get("ich_nom", 0)
     ich_obl = z.get("ich_obl", 0)
@@ -300,9 +214,6 @@ def kennzahlen(sm) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # Beschriftung für die Oberfläche
 # ---------------------------------------------------------------------------
-#
-# Die Hinweise sind nicht die übersetzten deutschen. Wo eine Zahl hier
-# schwächer oder stärker ist als drüben, steht das hier und nur hier.
 
 BESCHRIFTUNG: dict[str, tuple[str, str, str]] = {
     "generisch_quote": ("Generic “you” instead of “I”", "B",

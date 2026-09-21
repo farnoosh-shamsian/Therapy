@@ -1,14 +1,4 @@
-"""Kommandozeile — derselbe Code, lokal über ein ganzes Korpus.
-
-Der Browser ist der vorgesehene Weg. Dieses Modul existiert, damit der Weg
-nicht der einzige ist: wenn ein Jahr Transkripte irgendwann zu viel für eine
-Tabulatorseite wird, läuft dieselbe Analyse mit
-
-    pip install -e .
-    therapy auswerten ./transkripte --ausgabe bericht.json
-
-und liefert exakt denselben JSON-Vertrag wie die Oberfläche.
-"""
+"""Kommandozeile — derselbe Code, ganzes Korpus."""
 
 from __future__ import annotations
 
@@ -33,9 +23,7 @@ def _dateien_einlesen(pfade: list[Path]) -> list[dict]:
     return dateien
 
 
-# Dateien, die in einem Transkriptordner liegen können, ohne Transkripte zu
-# sein. Sie zu melden wäre formal richtig und praktisch nur Rauschen — wer
-# einen Ordner übergibt, meint die Transkripte darin.
+# Dateien, die in einem Transkriptordner liegen können.
 NICHT_TRANSKRIPT = {"manifest.json", "package.json", "tsconfig.json"}
 
 
@@ -61,7 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     p_aus.add_argument("--klient", default=None,
                        help="client id, if it is not in the filename")
     p_aus.add_argument("--keine-pseudonyme", action="store_true",
-                       help="skip name detection (not recommended)")
+                       help="keep the real names in the text; they are still "
+                            "detected, so the sociogram stays intact")
     p_aus.add_argument("--sprache", default=None, choices=["de", "en"],
                        help="force a language instead of detecting it per file")
 
@@ -102,8 +91,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - unavailable: {n}")
         return 0
 
-    if not getattr(args, "keine_pseudonyme", False):
-        korpus.pseudonymisiere()
+    korpus.pseudonymisiere(
+        ersetzen=not getattr(args, "keine_pseudonyme", False))
 
     if args.befehl == "konkordanz":
         for zeile in korpus.kwic(args.begriff, sprecher=args.sprecher):
